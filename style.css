@@ -616,6 +616,7 @@ body.msa-open { overflow: hidden; }
 
 #msa-root .msa-character-profile { gap: 12px; }
 #msa-root .msa-profile-topbar { display: flex; align-items: center; justify-content: space-between; }
+#msa-root .msa-profile-topbar > div { display: flex; gap: 6px; }
 #msa-root .msa-profile-topbar button { min-height: 34px; padding: 0 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; color: #aaa8af; background: #141519; font-size: 9px; cursor: pointer; }
 #msa-root .msa-profile-topbar button.is-favorite { border-color: rgba(255,79,134,.35); color: #ff7ca5; background: rgba(255,79,134,.1); }
 #msa-root .msa-profile-cover { min-height: 430px; border: 0; border-radius: 23px; box-shadow: 0 17px 42px rgba(0,0,0,.3); cursor: default; }
@@ -712,4 +713,118 @@ body.msa-open { overflow: hidden; }
     #msa-root .msa-profile-detail-grid { grid-template-columns: 1fr; }
     #msa-root .msa-brand small { display: none; }
     #msa-root .msa-header-actions { gap: 4px; }
+}
+
+/* Midnight Signal v2.1 — Aurora palette, rounded controls, original-quality artwork */
+#msa-root {
+    --msa-bg: #0b0912;
+    --msa-panel: #171421;
+    --msa-panel-soft: #1e192a;
+    --msa-line: rgba(206,197,255,.13);
+    --msa-rose: #ff6f91;
+    --msa-rose-soft: #ffabc0;
+    --msa-wine: #9b4771;
+    --msa-ivory: #faf7ff;
+    --msa-muted: #9b96aa;
+    --msa-mint: #6fe8d5;
+    --msa-yellow: #b9a8ff;
+}
+
+#msa-root button, #msa-launcher { border-radius: 16px; }
+#msa-root button { transition: border-color .16s ease, background-color .16s ease, color .16s ease, transform .16s ease, filter .16s ease; }
+#msa-root button:not(:disabled):active { transform: scale(.975); }
+#msa-root .msa-phone { border-color: rgba(193,180,255,.2); background: radial-gradient(circle at 100% 0, rgba(120,91,255,.09), transparent 32%), radial-gradient(circle at 0 100%, rgba(93,225,207,.055), transparent 28%), #0b0912; }
+#msa-root .msa-header { border-bottom-color: rgba(201,190,255,.1); background: rgba(11,9,18,.9); }
+#msa-root .msa-brand-mark { border-radius: 14px; color: #100d19; background: linear-gradient(145deg, #73ead8, #a996ff 72%); box-shadow: 0 8px 22px rgba(128,108,255,.25); }
+#msa-root .msa-current-character, #msa-root .msa-icon-button, #msa-root .msa-close { border-color: rgba(205,195,255,.13); border-radius: 13px; background: rgba(28,24,39,.92); }
+#msa-root .msa-notification-dot { background: #73ead8; box-shadow: 0 0 9px rgba(115,234,216,.65); }
+
+#msa-launcher { border-radius: 20px; color: #110d19; background: linear-gradient(145deg, #74ead9, #a58fff 66%, #ff82a3); box-shadow: 0 15px 44px rgba(0,0,0,.48), 0 8px 25px rgba(130,105,255,.27); }
+#msa-root .msa-bottom-nav { border-top-color: rgba(201,190,255,.11); background: rgba(13,11,20,.97); }
+#msa-root .msa-bottom-nav button { border-radius: 15px; }
+#msa-root .msa-bottom-nav button.is-active i { color: #b9a8ff; filter: drop-shadow(0 3px 9px rgba(166,145,255,.35)); }
+#msa-root .msa-bottom-nav .msa-nav-chat { border-radius: 23px; background: linear-gradient(145deg, #9c83ff, #ff6f91); box-shadow: 0 9px 26px rgba(179,86,172,.3); }
+
+#msa-root .msa-discover-heading small, #msa-root .msa-section-heading small, #msa-root .msa-page-title small { color: #8de8da; }
+#msa-root .msa-discover-heading > button { border-color: rgba(168,146,255,.34); border-radius: 13px; color: #d8ceff; background: rgba(145,119,255,.1); }
+#msa-root .msa-character-search { border-color: rgba(207,197,255,.13); border-radius: 18px; background: rgba(24,20,34,.92); }
+#msa-root .msa-character-search:focus-within { border-color: rgba(132,231,216,.55); box-shadow: 0 0 0 4px rgba(111,232,213,.07); }
+#msa-root .msa-character-search kbd { border-color: rgba(205,195,255,.11); border-radius: 9px; background: #241f31; }
+#msa-root .msa-character-filters button { border-color: rgba(205,195,255,.12); border-radius: 999px; background: rgba(23,20,32,.94); }
+#msa-root .msa-character-filters button.is-active { border-color: rgba(128,232,214,.52); color: #e7fffb; background: rgba(71,176,161,.16); box-shadow: inset 0 0 0 1px rgba(111,232,213,.08); }
+
+#msa-root .msa-current-session { border-color: rgba(203,192,255,.16); border-radius: 27px; background-color: #171321; box-shadow: 0 17px 40px rgba(4,2,10,.32); }
+#msa-root .msa-current-session-stats button { border-radius: 14px; color: #120e1b; background: linear-gradient(135deg, #72ead8, #b19cff); }
+#msa-root .msa-explore-card { border-color: rgba(206,196,255,.13); border-radius: 24px; background: rgba(23,20,33,.95); box-shadow: 0 12px 30px rgba(3,2,8,.22); }
+#msa-root .msa-explore-cover { background-color: #1b1725; image-rendering: auto; }
+#msa-root .msa-explore-cover, #msa-root .msa-profile-cover-art, #msa-root .msa-current-session { background-repeat: no-repeat; }
+#msa-root .msa-explore-badges b { border-color: rgba(219,211,255,.2); border-radius: 999px; background: rgba(12,9,18,.68); }
+#msa-root .msa-explore-card-copy button { border-color: rgba(205,195,255,.14); border-radius: 13px; background: #252031; }
+#msa-root .msa-explore-card-copy button:first-child { border-color: rgba(161,139,255,.34); background: linear-gradient(135deg, rgba(128,104,238,.22), rgba(255,111,145,.14)); }
+#msa-root .msa-explore-card-copy .msa-explore-favorite.is-favorite { color: #ff8cab; background: rgba(255,111,145,.13); }
+
+#msa-root .msa-profile-topbar button { border-color: rgba(205,195,255,.13); border-radius: 14px; background: rgba(24,20,34,.94); }
+#msa-root .msa-profile-topbar button.is-favorite { border-color: rgba(255,111,145,.38); background: rgba(255,111,145,.11); }
+#msa-root .msa-profile-cover { border-radius: 29px; background: #181321; }
+#msa-root .msa-profile-cover-art { image-rendering: auto; }
+#msa-root .msa-profile-cover-copy small, #msa-root .msa-profile-section > small { color: #7ee8d8; }
+#msa-root .msa-profile-counts b { border-color: rgba(214,204,255,.18); border-radius: 999px; background: rgba(12,9,18,.7); }
+#msa-root .msa-profile-actions button { border-color: rgba(205,195,255,.13); border-radius: 16px; background: #211c2d; }
+#msa-root .msa-profile-actions button.is-primary { background: linear-gradient(135deg, #947cff, #ff6f91); box-shadow: 0 9px 25px rgba(160,87,187,.25); }
+#msa-root .msa-profile-section { border-color: rgba(205,195,255,.11); border-radius: 20px; background: rgba(23,20,33,.95); }
+#msa-root .msa-profile-section.is-first-message { border-color: rgba(166,145,255,.25); background: linear-gradient(145deg, rgba(133,110,245,.12), rgba(255,111,145,.06), #171421 66%); }
+
+#msa-root .msa-chat-contactbar { border-bottom-color: rgba(205,195,255,.11); background: rgba(12,10,19,.94); }
+#msa-root .msa-chat-back, #msa-root .msa-chat-background-button { border-color: rgba(205,195,255,.13); border-radius: 14px; background: #1d1927; }
+#msa-root .msa-message { border-color: rgba(205,195,255,.1); border-radius: 19px 19px 19px 7px; background: rgba(27,23,38,.92); }
+#msa-root .msa-message.is-user { border-color: rgba(255,129,161,.25); border-radius: 19px 19px 7px 19px; background: linear-gradient(145deg, rgba(139,105,245,.9), rgba(182,73,127,.92)); }
+#msa-root .msa-chat-switchers > button, #msa-root .msa-chat-switchers > button:nth-child(2) { border-color: rgba(205,195,255,.12); border-radius: 14px; background: rgba(26,22,36,.96); }
+#msa-root .msa-chat-switchers > button > i:first-child, #msa-root .msa-chat-switchers > button:nth-child(2) > i:first-child { color: #7de8d7; }
+#msa-root .msa-chat-composer textarea { border-color: rgba(205,195,255,.13); border-radius: 17px; background: #1a1624; }
+#msa-root .msa-chat-composer textarea:focus { border-color: #8ce9da; box-shadow: 0 0 0 4px rgba(111,232,213,.07); }
+#msa-root .msa-chat-composer button { border-radius: 17px; background: linear-gradient(145deg, #967eff, #ff6f91); box-shadow: 0 8px 22px rgba(161,84,184,.24); }
+#msa-root .msa-chat-composer .msa-persona-button { border-color: rgba(111,232,213,.25); color: #9df2e5; background: rgba(65,166,152,.11); }
+
+#msa-root .msa-card-actions button, #msa-root .msa-setting-row, #msa-root .msa-managed-card, #msa-root .msa-character-card { border-color: rgba(205,195,255,.11); border-radius: 19px; background: rgba(23,20,33,.95); }
+#msa-root .msa-card-actions button:first-child { border-color: rgba(111,232,213,.25); background: rgba(62,166,151,.09); }
+#msa-root .msa-card-actions button > i { color: #79e8d7; }
+#msa-root .msa-managed-card { grid-template-columns: minmax(0, 1fr) 52px 44px; overflow: hidden; }
+#msa-root .msa-managed-card.is-current { border-color: rgba(111,232,213,.38); background: rgba(58,152,140,.075); }
+#msa-root .msa-managed-card-upload { display: grid; align-content: center; justify-items: center; gap: 3px; margin: 7px 3px; padding: 0; border: 1px solid rgba(111,232,213,.18); border-radius: 12px; color: #9eece1; background: rgba(71,167,155,.09); cursor: pointer; }
+#msa-root .msa-managed-card-upload span { font-size: 7px; }
+#msa-root .msa-managed-card-delete { margin: 7px 7px 7px 3px; border: 1px solid rgba(255,111,145,.16); border-radius: 12px; }
+#msa-root .msa-background-setting-button { border-color: rgba(111,232,213,.23); border-radius: 19px; background: rgba(60,161,148,.075); }
+#msa-root .msa-background-setting-icon, #msa-root .msa-background-setting-button > i { color: #7ce8d8; background: rgba(75,181,166,.1); }
+#msa-root .msa-font-setting output { border-color: rgba(171,148,255,.3); color: #c8baff; background: rgba(142,117,244,.1); }
+#msa-root .msa-save-button { border-radius: 16px; background: linear-gradient(135deg, #9279fb, #ff6f91); }
+
+#msa-root .msa-sheet > section { border-color: rgba(205,195,255,.15); border-radius: 29px 29px 0 0; background: #100d18; }
+#msa-root .msa-sheet header { border-bottom-color: rgba(205,195,255,.1); }
+#msa-root .msa-sheet header small { color: #7ce8d8; }
+#msa-root .msa-sheet header button { border-color: rgba(205,195,255,.13); border-radius: 14px; background: #1f1a2b; }
+#msa-root .msa-native-setting-meta, #msa-root .msa-persona-intro { border-color: rgba(111,232,213,.22); border-radius: 19px; background: rgba(64,164,151,.075); }
+#msa-root .msa-native-setting-meta > i { color: #7de8d8; background: rgba(71,176,162,.1); }
+#msa-root .msa-native-setting-option, #msa-root .msa-persona-option, #msa-root .msa-greeting-list button { border-color: rgba(205,195,255,.11); border-radius: 17px; background: #1b1725; }
+#msa-root .msa-native-setting-option.is-current, #msa-root .msa-persona-option.is-current, #msa-root .msa-greeting-list button.is-current { border-color: rgba(155,132,255,.48); background: rgba(135,109,241,.11); box-shadow: inset 3px 0 #9b83ff; }
+
+#msa-root .msa-avatar-upload-editor { display: grid; gap: 13px; }
+#msa-root .msa-avatar-upload-preview { position: relative; display: grid; min-height: 340px; overflow: hidden; align-content: end; padding: 18px; border: 1px solid rgba(205,195,255,.16); border-radius: 25px; background-color: #1a1624; background-image: linear-gradient(180deg, rgba(8,6,13,.04), rgba(8,6,13,.15) 46%, rgba(8,6,13,.94)), var(--msa-upload-avatar); background-position: center 25%; background-repeat: no-repeat; background-size: cover; image-rendering: auto; }
+#msa-root .msa-avatar-upload-preview > span { display: grid; gap: 4px; }
+#msa-root .msa-avatar-upload-preview b { color: #7ce8d8; font-size: 7px; letter-spacing: .17em; }
+#msa-root .msa-avatar-upload-preview strong { overflow: hidden; font-size: 22px; text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-avatar-quality-note { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid rgba(111,232,213,.22); border-radius: 17px; background: rgba(64,164,151,.075); }
+#msa-root .msa-avatar-quality-note > i { display: grid; width: 39px; height: 39px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: #7ce8d8; background: rgba(70,177,162,.12); }
+#msa-root .msa-avatar-quality-note > span { display: grid; gap: 4px; }
+#msa-root .msa-avatar-quality-note strong { font-size: 12px; }
+#msa-root .msa-avatar-quality-note small { color: #8f8a9d; font-size: 8px; line-height: 1.5; }
+#msa-root .msa-avatar-upload-picker { position: relative; display: flex; align-items: center; gap: 11px; min-height: 58px; padding: 10px 13px; border: 1px solid rgba(164,141,255,.38); border-radius: 17px; color: #eee9ff; background: linear-gradient(135deg, rgba(132,106,241,.18), rgba(255,111,145,.1)); cursor: pointer; }
+#msa-root .msa-avatar-upload-picker > i { display: grid; width: 39px; height: 39px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: #d7cdff; background: rgba(142,118,241,.16); }
+#msa-root .msa-avatar-upload-picker > span { display: grid; gap: 4px; }
+#msa-root .msa-avatar-upload-picker strong { font-size: 12px; }
+#msa-root .msa-avatar-upload-picker small { color: #9f98ae; font-size: 8px; }
+#msa-root .msa-avatar-upload-picker input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+#msa-root .msa-avatar-upload-editor > p { margin: 0 4px; color: #777282; font-size: 8px; line-height: 1.6; }
+
+@media (max-width: 520px) {
+    #msa-root .msa-avatar-upload-preview { min-height: min(390px, 48vh); }
 }

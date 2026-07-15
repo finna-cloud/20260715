@@ -33,6 +33,7 @@ let selectedProfileCharacterId = null;
 let selectedPersonaId = null;
 let characterSearchQuery = '';
 let characterFilter = 'all';
+const avatarRevisions = new Map();
 let fullViewportHeight = 0;
 let viewportFrame = 0;
 
@@ -325,6 +326,13 @@ function avatarUrl(character) {
     return `/thumbnail?type=avatar&file=${encodeURIComponent(avatar)}`;
 }
 
+function originalAvatarUrl(character) {
+    const avatar = character?.avatar || character?.data?.avatar;
+    if (!avatar || avatar === 'none') return '';
+    const revision = avatarRevisions.get(String(avatar));
+    return `/characters/${encodeURIComponent(avatar)}${revision ? `?t=${revision}` : ''}`;
+}
+
 function getGreetings(character) {
     if (!character) return [];
     const first = character.first_mes ?? character.data?.first_mes ?? '';
@@ -545,7 +553,7 @@ function exploreCharacterCardMarkup({ character, id }) {
     const searchText = [characterName(character), character.description, character.data?.description, character.personality, character.data?.personality].filter(Boolean).join(' ').toLocaleLowerCase('zh-Hant');
     return `
         <article class="msa-explore-card" data-character-search="${escapeHtml(searchText)}" data-character-favorite="${favorite}" data-character-multiple="${greetingCount > 1}">
-            <button class="msa-explore-cover" type="button" data-profile-character-id="${id}" style="--msa-card-avatar:url(&quot;${escapeHtml(avatarUrl(character))}&quot;)">
+            <button class="msa-explore-cover" type="button" data-profile-character-id="${id}" style="--msa-card-avatar:url(&quot;${escapeHtml(originalAvatarUrl(character))}&quot;)">
                 <span class="msa-explore-cover-shade"></span>
                 <span class="msa-explore-badges"><b>${icon('message')} ${greetingCount}</b>${favorite ? `<b class="is-favorite">${icon('heart')}</b>` : ''}</span>
                 <span class="msa-explore-title"><strong>${escapeHtml(characterName(character))}</strong><small>查看角色主頁</small></span>
@@ -566,7 +574,7 @@ function homeMarkup() {
     const name = characterName(character);
     const characters = getCharacters();
     const messages = (context()?.chat || []).filter(message => !message?.is_system).length;
-    const currentAvatar = avatarUrl(character);
+    const currentAvatar = originalAvatarUrl(character);
     return `
         <section class="msa-home msa-discover-home">
             <div class="msa-discover-heading">
@@ -618,13 +626,14 @@ function characterManagementMarkup() {
                 <button type="button" data-action="import-character">${icon('file-import')}<span><strong>匯入角色卡</strong><small>PNG、JSON、YAML、CHARX、BYAF</small></span></button>
                 <button type="button" data-action="new-character">${icon('user-plus')}<span><strong>新增角色卡</strong><small>直接建立基本角色資料</small></span></button>
             </div>
-            <p class="msa-card-manager-note">刪除角色卡時會保留原有聊天紀錄；角色卡本身刪除後無法復原。</p>
+            <p class="msa-card-manager-note">角色封面可重新上傳高畫質原圖，不會在瀏覽器端壓縮；刪除角色卡時會保留原有聊天紀錄。</p>
             <div class="msa-managed-card-list">${characters.length ? characters.map(({ character, id }) => `
                 <article class="msa-managed-card ${Number(context()?.characterId) === id ? 'is-current' : ''}">
                     <button type="button" class="msa-managed-card-main" data-character-id="${id}">
                         <span class="msa-avatar" style="--msa-avatar-url:url('${escapeHtml(avatarUrl(character))}')"></span>
                         <span><strong>${escapeHtml(characterName(character))}</strong><small>${escapeHtml(excerpt(character.description || character.data?.description || '尚未填寫角色描述', 58))}</small></span>
                     </button>
+                    <button type="button" class="msa-managed-card-upload" data-upload-character-avatar="${id}" aria-label="替換 ${escapeHtml(characterName(character))} 的高畫質封面" title="重新上傳高畫質封面">${icon('image')}<span>換圖</span></button>
                     <button type="button" class="msa-managed-card-delete" data-delete-character="${id}" aria-label="刪除 ${escapeHtml(characterName(character))}">${icon('trash-can')}</button>
                 </article>`).join('') : '<div class="msa-card-manager-empty">目前沒有角色卡，可從上方匯入或新增。</div>'}</div>
         </section>`;
@@ -644,9 +653,9 @@ function characterProfileMarkup() {
     const favorite = settings().favorites.includes(characterKey(character));
     return `
         <section class="msa-page msa-character-profile">
-            <div class="msa-profile-topbar"><button type="button" data-nav="home">${icon('arrow-left')} 探索</button><button class="${favorite ? 'is-favorite' : ''}" type="button" data-favorite-id="${id}">${icon('heart')} ${favorite ? '已收藏' : '收藏'}</button></div>
+            <div class="msa-profile-topbar"><button type="button" data-nav="home">${icon('arrow-left')} 探索</button><div><button type="button" data-upload-character-avatar="${id}">${icon('image')} 高畫質換圖</button><button class="${favorite ? 'is-favorite' : ''}" type="button" data-favorite-id="${id}">${icon('heart')} ${favorite ? '已收藏' : '收藏'}</button></div></div>
             <div class="msa-profile-cover">
-                <span class="msa-profile-cover-art" style="--msa-profile-avatar:url('${escapeHtml(avatarUrl(character))}')"></span>
+                <span class="msa-profile-cover-art" style="--msa-profile-avatar:url(&quot;${escapeHtml(originalAvatarUrl(character))}&quot;)"></span>
                 <span class="msa-profile-cover-shade"></span>
                 <span class="msa-profile-cover-copy"><small>CHARACTER PROFILE</small><strong>${escapeHtml(characterName(character))}</strong><em>${escapeHtml(excerpt(personality, 48))}</em></span>
                 <span class="msa-profile-counts"><b>${icon('comment-dots')} ${greetingCount} 個開場</b><b>${icon('signal')} ONLINE</b></span>
@@ -691,7 +700,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.0.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.1.0</p>
         </section>`;
 }
 
@@ -1264,6 +1273,68 @@ function triggerCharacterImport() {
     input.click();
 }
 
+function openHighQualityAvatarSheet(id) {
+    const character = context()?.characters?.[Number(id)];
+    if (!character) {
+        notify('找不到要更新封面的角色。', 'error');
+        return;
+    }
+    const original = originalAvatarUrl(character);
+    const content = `
+        <div class="msa-avatar-upload-editor">
+            <div class="msa-avatar-upload-preview" style="--msa-upload-avatar:url(&quot;${escapeHtml(original)}&quot;)"><span><b>ORIGINAL QUALITY</b><strong>${escapeHtml(characterName(character))}</strong></span></div>
+            <div class="msa-avatar-quality-note">${icon('expand')}<span><strong>保留原始解析度</strong><small>APP 不會縮小或轉成低畫質縮圖；SillyTavern 會以 PNG 無損保存角色資料與新封面。</small></span></div>
+            <label class="msa-avatar-upload-picker">${icon('cloud-arrow-up')}<span><strong>選擇高畫質圖片</strong><small>PNG、JPG、WEBP 或 GIF，檔案上限 25 MB</small></span><input id="msa-character-avatar-file" data-avatar-character-id="${id}" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+            <p>建議使用直式圖片，長邊 1600–3000 px。上傳只會替換封面，不會清除角色設定或聊天紀錄。</p>
+        </div>`;
+    showSheet('高畫質角色封面', content);
+}
+
+async function uploadHighQualityCharacterAvatar(id, file) {
+    const character = context()?.characters?.[Number(id)];
+    if (!character || !file) return;
+    if (!file.type?.startsWith('image/')) {
+        notify('請選擇圖片檔。', 'warning');
+        return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+        notify('高畫質封面需小於 25 MB。', 'warning');
+        return;
+    }
+
+    const input = document.getElementById('msa-character-avatar-file');
+    if (input) input.disabled = true;
+    const avatar = character.avatar || character.data?.avatar;
+    const formData = new FormData();
+    formData.append('avatar_url', avatar);
+    formData.append('avatar', file, file.name);
+    notify('正在上傳原始畫質角色封面……', 'info');
+
+    try {
+        const response = await fetch('/api/characters/edit-avatar', {
+            method: 'POST',
+            headers: await getAppRequestHeaders({ omitContentType: true }),
+            body: formData,
+            cache: 'no-cache',
+        });
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        avatarRevisions.set(String(avatar), Date.now());
+        await refreshCharacterData();
+        const ctx = context();
+        const eventTypes = ctx?.eventTypes || ctx?.event_types || {};
+        if (eventTypes.CHARACTER_EDITED) {
+            await ctx?.eventSource?.emit?.(eventTypes.CHARACTER_EDITED, { detail: { id: Number(id), character: ctx.characters?.[Number(id)] } });
+        }
+        closeSheet();
+        render('cards');
+        notify(`「${characterName(character)}」已換成高畫質封面。`, 'success');
+    } catch (error) {
+        notify('高畫質封面上傳失敗，請確認圖片格式後再試。', 'error');
+        console.error('[Midnight Signal] Failed to replace character avatar.', error);
+        if (input?.isConnected) input.disabled = false;
+    }
+}
+
 function openCreateCharacterSheet() {
     const content = `
         <div id="msa-new-character-form" class="msa-new-character-form">
@@ -1567,6 +1638,10 @@ async function handleClick(event) {
         }
         return;
     }
+    if (button.dataset.uploadCharacterAvatar !== undefined) {
+        openHighQualityAvatarSheet(Number(button.dataset.uploadCharacterAvatar));
+        return;
+    }
     if (button.dataset.deleteMemory !== undefined) {
         deleteMemory(button.dataset.deleteMemory);
         return;
@@ -1636,6 +1711,10 @@ async function handleClick(event) {
 }
 
 function handleChange(event) {
+    if (event.target?.id === 'msa-character-avatar-file') {
+        uploadHighQualityCharacterAvatar(Number(event.target.dataset.avatarCharacterId), event.target.files?.[0]);
+        return;
+    }
     if (event.target?.id === 'msa-chat-background-file') {
         setChatBackgroundFromFile(event.target.files?.[0]);
         return;

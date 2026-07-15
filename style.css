@@ -302,6 +302,8 @@ body.msa-open { overflow: hidden; }
 .msa-sheet header button { width: 36px; height: 36px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; color: #eee2df; background: #0e1521; cursor: pointer; }
 .msa-sheet-content { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 16px 18px max(22px, env(safe-area-inset-bottom)); }
 .msa-greeting-list { display: grid; gap: 10px; }
+.msa-new-chat-greeting-note { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid rgba(75,226,203,.2); border-radius: 13px; color: #a7a0ae; background: rgba(25,90,83,.12); font-size: calc(9px * var(--msa-ui-font-scale, 1)); line-height: 1.55; }
+.msa-new-chat-greeting-note > i { flex: 0 0 auto; margin-top: 2px; color: #6fe8d6; }
 .msa-greeting-list button { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 14px; width: 100%; padding: 14px; border: 1px solid rgba(255,255,255,.11); border-radius: 16px; color: inherit; background: #0d1420; text-align: left; cursor: pointer; }
 .msa-greeting-list button.is-current { border-color: var(--msa-rose); background: rgba(111,34,46,.38); }
 .msa-greeting-list button > span { display: grid; gap: 5px; }

@@ -1093,7 +1093,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.5.1</p>
+            <p class="msa-version">Midnight Signal APP · v2.5.2</p>
         </section>`;
 }
 
@@ -1499,14 +1499,13 @@ function openGreetingSheet() {
         return;
     }
     const greetings = getGreetings(current.character);
-    const currentSwipe = Number(context()?.chat?.[0]?.swipe_id || 0);
     const content = greetings.length
-        ? `<div class="msa-greeting-list">${greetings.map((greeting, index) => `
-            <button type="button" data-greeting-index="${index}" class="${currentSwipe === index ? 'is-current' : ''}">
-                <span><small>${index === 0 ? '預設開場白' : `開場白 ${index + 1}`}</small><strong>${escapeHtml(excerpt(greeting, 110))}</strong></span>${icon(currentSwipe === index ? 'check' : 'chevron-right')}
+        ? `<p class="msa-new-chat-greeting-note">${icon('circle-info')} 選定開場白後才會新增獨立聊天室，原有對話不會被修改。</p><div class="msa-greeting-list">${greetings.map((greeting, index) => `
+            <button type="button" data-greeting-index="${index}">
+                <span><small>${index === 0 ? '預設開場白' : `開場白 ${index + 1}`}</small><strong>${escapeHtml(excerpt(greeting, 110))}</strong></span>${icon('chevron-right')}
             </button>`).join('')}</div>`
         : `<div class="msa-sheet-empty">這張角色卡沒有設定開場白。</div>`;
-    showSheet('開場白選擇', content);
+    showSheet('新增聊天室 · 選擇開場白', content);
 }
 
 function openNotifications() {
@@ -2279,14 +2278,7 @@ async function handleClick(event) {
         messages: () => render('messages'),
         'conversation-hub': () => render('conversations'),
         'chat-list': () => openCharacterThreads(context()?.characterId),
-        'new-chat': async () => {
-            try {
-                await createNewCharacterChat();
-            } catch (error) {
-                notify(error.message || '建立聊天室失敗。', 'error');
-                console.error('[Midnight Signal] Failed to create chat.', error);
-            }
-        },
+        'new-chat': openGreetingSheet,
         'reload-chat-threads': () => loadCharacterChatThreads(context()?.characterId),
         'confirm-rename-chat': renameCharacterChatFromApp,
         relationship: () => openProfileStateView('relationship'),

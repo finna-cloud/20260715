@@ -31,6 +31,8 @@ let activeView = 'home';
 let selectedCharacterId = null;
 let selectedProfileCharacterId = null;
 let selectedPersonaId = null;
+let characterSearchQuery = '';
+let characterFilter = 'all';
 let fullViewportHeight = 0;
 let viewportFrame = 0;
 
@@ -511,82 +513,84 @@ function shellMarkup() {
         <div id="${ROOT_ID}" class="msa-hidden" aria-hidden="true">
             <div class="msa-backdrop" data-action="close"></div>
             <section class="msa-phone" role="dialog" aria-modal="true" aria-label="Midnight Signal APP">
-                <button class="msa-close" type="button" data-action="close" aria-label="關閉">${icon('xmark')}</button>
                 <div class="msa-app-scroll">
                     <header class="msa-header">
-                        <button class="msa-profile" type="button" data-action="characters" aria-label="選擇對話角色">
-                            <span class="msa-avatar msa-avatar-current"></span>
-                            <span><strong>MIDNIGHT SIGNAL</strong><small><b></b> ONLINE</small></span>
+                        <button class="msa-brand" type="button" data-nav="home" aria-label="回到探索首頁">
+                            <span class="msa-brand-mark">${icon('signal')}</span>
+                            <span><strong>MIDNIGHT</strong><small>角色訊號站</small></span>
                         </button>
-                        <button class="msa-icon-button" type="button" data-action="notifications" aria-label="通知">
-                            ${icon('bell')}<span class="msa-notification-dot"></span>
-                        </button>
+                        <div class="msa-header-actions">
+                            <button class="msa-current-character" type="button" data-action="current-profile" aria-label="查看目前角色主頁"><span class="msa-avatar msa-avatar-current"></span></button>
+                            <button class="msa-icon-button" type="button" data-action="notifications" aria-label="通知">${icon('bell')}<span class="msa-notification-dot"></span></button>
+                            <button class="msa-close" type="button" data-action="close" aria-label="關閉">${icon('xmark')}</button>
+                        </div>
                     </header>
                     <main id="msa-content"></main>
                 </div>
                 <nav class="msa-bottom-nav" aria-label="APP 導覽">
-                    <button type="button" data-nav="home">${icon('house')}<span>主頁</span></button>
-                    <button type="button" data-nav="favorites">${icon('star')}<span>收藏</span></button>
+                    <button type="button" data-nav="home">${icon('compass')}<span>探索</span></button>
                     <button type="button" data-nav="cards">${icon('address-card')}<span>角色</span></button>
-                    <button type="button" data-nav="settings">${icon('gear')}<span>設定</span></button>
+                    <button class="msa-nav-chat" type="button" data-nav="messages">${icon('comment-dots')}<span>對話</span></button>
+                    <button type="button" data-nav="favorites">${icon('heart')}<span>收藏</span></button>
+                    <button type="button" data-nav="settings">${icon('sliders')}<span>設定</span></button>
                 </nav>
             </section>
             <div id="msa-sheet" class="msa-sheet msa-hidden" aria-hidden="true"></div>
         </div>`;
 }
 
+function exploreCharacterCardMarkup({ character, id }) {
+    const favorite = settings().favorites.includes(characterKey(character));
+    const greetingCount = getGreetings(character).length;
+    const searchText = [characterName(character), character.description, character.data?.description, character.personality, character.data?.personality].filter(Boolean).join(' ').toLocaleLowerCase('zh-Hant');
+    return `
+        <article class="msa-explore-card" data-character-search="${escapeHtml(searchText)}" data-character-favorite="${favorite}" data-character-multiple="${greetingCount > 1}">
+            <button class="msa-explore-cover" type="button" data-profile-character-id="${id}" style="--msa-card-avatar:url(&quot;${escapeHtml(avatarUrl(character))}&quot;)">
+                <span class="msa-explore-cover-shade"></span>
+                <span class="msa-explore-badges"><b>${icon('message')} ${greetingCount}</b>${favorite ? `<b class="is-favorite">${icon('heart')}</b>` : ''}</span>
+                <span class="msa-explore-title"><strong>${escapeHtml(characterName(character))}</strong><small>查看角色主頁</small></span>
+            </button>
+            <div class="msa-explore-card-copy">
+                <p>${escapeHtml(excerpt(character.description || character.data?.description || '等待你探索這名角色的故事。', 70))}</p>
+                <div>
+                    <button type="button" data-start-character-id="${id}">${icon('comment-dots')} 開始對話</button>
+                    <button class="msa-explore-favorite ${favorite ? 'is-favorite' : ''}" type="button" data-favorite-id="${id}" aria-label="${favorite ? '取消收藏' : '加入收藏'}">${icon('heart')}</button>
+                </div>
+            </div>
+        </article>`;
+}
+
 function homeMarkup() {
     const current = getCurrentCharacter();
     const character = current?.character;
     const name = characterName(character);
-    const greetingCount = getGreetings(character).length;
-    const tokenUsage = getChatTokenUsage();
     const characters = getCharacters();
-    const characterStrip = characters.length ? characters.map(({ character: card, id }) => `
-        <button type="button" class="msa-home-character-card" data-profile-character-id="${id}">
-            <span class="msa-home-character-art" style="--msa-card-avatar:url('${escapeHtml(avatarUrl(card))}')"></span>
-            <span class="msa-home-character-shade"></span>
-            <span class="msa-home-character-copy"><strong>${escapeHtml(characterName(card))}</strong><small>${escapeHtml(excerpt(card.description || card.data?.description || '查看角色主頁', 35))}</small></span>
-        </button>`).join('') : '<div class="msa-home-character-empty">尚未匯入角色卡</div>';
+    const messages = (context()?.chat || []).filter(message => !message?.is_system).length;
+    const currentAvatar = avatarUrl(character);
     return `
-        <section class="msa-home">
-            <button class="msa-hero" type="button" data-action="characters" aria-label="選擇對話角色">
-                <span class="msa-hero-art" role="img" aria-label="紅色聲波與雨夜城市"></span>
-                <span class="msa-hero-shade"></span>
-                <span class="msa-hero-copy">
-                    <small>${icon('user-group')} 選擇對話角色</small>
-                    <strong>${escapeHtml(name)}</strong>
-                    <em>今晚，要和誰開始？</em>
-                </span>
-            </button>
-
-            <section class="msa-home-character-section">
-                <header><span><small>CHARACTERS</small><strong>角色卡主頁</strong></span><button type="button" data-nav="cards">管理角色</button></header>
-                <div class="msa-home-character-strip">${characterStrip}</div>
-            </section>
-
-            <button class="msa-opening-button" type="button" data-action="greetings">
-                ${icon('heart')}<span><small>目前角色共有 ${greetingCount} 個開場</small><strong>開場白選擇</strong></span>${icon('chevron-right')}
-            </button>
-
-            <button class="msa-latest" type="button" data-action="messages">
-                <span class="msa-latest-icon">${icon('message')}</span>
-                <span><small>最近訊息</small><strong>${escapeHtml(excerpt(getLatestMessage(), 38))}</strong></span>
-                <time>${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</time>
-            </button>
-
-            <button class="msa-token-button" type="button" data-action="tokens">
-                <span class="msa-token-icon">${icon('gauge-high')}</span>
-                <span class="msa-token-main"><small>API 實際用量</small><strong>TOKEN USAGE</strong></span>
-                <span class="msa-token-last"><small>聊天 / 本次</small><b><span id="msa-token-home-chat">${formatToken(tokenUsage.total)}</span> / <span id="msa-token-home-last">${formatToken(tokenUsage.lastTotal)}</span></b>${icon('chevron-right')}</span>
-            </button>
-
-            <div class="msa-grid">
-                <button type="button" data-action="messages">${icon('message')}<span>訊息</span></button>
-                <button type="button" data-action="relationship">${icon('user-group')}<span>關係</span></button>
-                <button type="button" data-action="memories">${icon('image')}<span>回憶</span></button>
-                <button type="button" data-action="moments">${icon('wave-square')}<span>動態</span></button>
+        <section class="msa-home msa-discover-home">
+            <div class="msa-discover-heading">
+                <span><small>DISCOVER CHARACTERS</small><strong>今天想和誰聊？</strong></span>
+                <button type="button" data-nav="cards">${icon('plus')} 新增角色</button>
             </div>
+
+            <label class="msa-character-search">${icon('magnifying-glass')}<input id="msa-character-search" type="search" value="${escapeHtml(characterSearchQuery)}" placeholder="搜尋角色名稱或設定……" autocomplete="off"><kbd>${characters.length}</kbd></label>
+
+            <div class="msa-character-filters" role="group" aria-label="角色篩選">
+                <button class="${characterFilter === 'all' ? 'is-active' : ''}" type="button" data-character-filter="all">全部角色</button>
+                <button class="${characterFilter === 'favorites' ? 'is-active' : ''}" type="button" data-character-filter="favorites">${icon('heart')} 已收藏</button>
+                <button class="${characterFilter === 'multiple' ? 'is-active' : ''}" type="button" data-character-filter="multiple">多開場</button>
+            </div>
+
+            <article class="msa-current-session" style="--msa-current-avatar:url(&quot;${escapeHtml(currentAvatar)}&quot;)">
+                <span class="msa-current-session-shade"></span>
+                <div class="msa-current-session-copy"><small><b></b> CURRENT SIGNAL</small><strong>${escapeHtml(name)}</strong><p>${escapeHtml(excerpt(getLatestMessage(), 76))}</p></div>
+                <div class="msa-current-session-stats"><span><b>${messages}</b> 則訊息</span><button type="button" data-action="messages">繼續對話 ${icon('arrow-right')}</button></div>
+            </article>
+
+            <div class="msa-section-heading"><span><small>CHARACTER FEED</small><strong>角色卡</strong></span><output id="msa-character-result-count">${characters.length} 位角色</output></div>
+            <div class="msa-explore-grid">${characters.length ? characters.map(exploreCharacterCardMarkup).join('') : ''}</div>
+            <div id="msa-character-filter-empty" class="msa-character-filter-empty" ${characters.length ? 'hidden' : ''}>${icon('ghost')}<strong>沒有符合的角色</strong><span>調整搜尋或匯入新的角色卡。</span></div>
         </section>`;
 }
 
@@ -636,21 +640,28 @@ function characterProfileMarkup() {
     const personality = character.personality || character.data?.personality || '尚未填寫性格。';
     const scenario = character.scenario || character.data?.scenario || '尚未填寫場景。';
     const firstMessage = character.first_mes || character.data?.first_mes || '尚未設定開場白。';
+    const greetingCount = getGreetings(character).length;
+    const favorite = settings().favorites.includes(characterKey(character));
     return `
         <section class="msa-page msa-character-profile">
-            <button type="button" class="msa-profile-cover" data-start-character-id="${id}">
+            <div class="msa-profile-topbar"><button type="button" data-nav="home">${icon('arrow-left')} 探索</button><button class="${favorite ? 'is-favorite' : ''}" type="button" data-favorite-id="${id}">${icon('heart')} ${favorite ? '已收藏' : '收藏'}</button></div>
+            <div class="msa-profile-cover">
                 <span class="msa-profile-cover-art" style="--msa-profile-avatar:url('${escapeHtml(avatarUrl(character))}')"></span>
                 <span class="msa-profile-cover-shade"></span>
-                <span class="msa-profile-cover-copy"><small>CHARACTER HOME</small><strong>${escapeHtml(characterName(character))}</strong><em>點擊開始對話</em></span>
-            </button>
-            <div class="msa-profile-actions">
-                <button type="button" data-start-character-id="${id}">${icon('comments')} 開始聊天</button>
-                <button type="button" data-profile-greetings-id="${id}">${icon('heart')} 開場白</button>
+                <span class="msa-profile-cover-copy"><small>CHARACTER PROFILE</small><strong>${escapeHtml(characterName(character))}</strong><em>${escapeHtml(excerpt(personality, 48))}</em></span>
+                <span class="msa-profile-counts"><b>${icon('comment-dots')} ${greetingCount} 個開場</b><b>${icon('signal')} ONLINE</b></span>
             </div>
-            <article class="msa-profile-section"><small>DESCRIPTION</small><strong>角色設定</strong><p>${escapeHtml(fullMessageText(description))}</p></article>
-            <article class="msa-profile-section"><small>PERSONALITY</small><strong>性格</strong><p>${escapeHtml(fullMessageText(personality))}</p></article>
-            <article class="msa-profile-section"><small>SCENARIO</small><strong>場景</strong><p>${escapeHtml(fullMessageText(scenario))}</p></article>
-            <article class="msa-profile-section is-first-message"><small>FIRST MESSAGE</small><strong>預設開場白</strong><p>${escapeHtml(fullMessageText(firstMessage))}</p></article>
+            <div class="msa-profile-actions">
+                <button class="is-primary" type="button" data-start-character-id="${id}">${icon('comment-dots')} 與角色對話</button>
+                <button type="button" data-profile-greetings-id="${id}">${icon('shuffle')} 選擇開場白</button>
+            </div>
+            <div class="msa-profile-tabs"><span class="is-active">角色資料</span><span>世界觀</span><span>開場預覽</span></div>
+            <article class="msa-profile-section"><small>${icon('address-card')} DESCRIPTION</small><strong>角色設定</strong><p>${escapeHtml(fullMessageText(description))}</p></article>
+            <div class="msa-profile-detail-grid">
+                <article class="msa-profile-section"><small>${icon('fingerprint')} PERSONALITY</small><strong>性格</strong><p>${escapeHtml(fullMessageText(personality))}</p></article>
+                <article class="msa-profile-section"><small>${icon('earth-americas')} SCENARIO</small><strong>場景</strong><p>${escapeHtml(fullMessageText(scenario))}</p></article>
+            </div>
+            <article class="msa-profile-section is-first-message"><small>${icon('quote-left')} FIRST MESSAGE</small><strong>預設開場白</strong><p>${escapeHtml(fullMessageText(firstMessage))}</p></article>
         </section>`;
 }
 
@@ -680,7 +691,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v1.4.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.0.0</p>
         </section>`;
 }
 
@@ -703,9 +714,15 @@ function messagesMarkup() {
     const hiddenCount = Math.max(0, chat.length - visibleMessages.length);
     const model = getChatModelControl();
     const preset = getChatPresetControl();
+    const current = getCurrentCharacter();
+    const currentAvatar = avatarUrl(current?.character);
     return `
         <section class="msa-page msa-chat-page">
-            <div class="msa-page-title msa-chat-title"><span><small>MESSAGES</small><strong>與 ${escapeHtml(characterName(getCurrentCharacter()?.character))} 對話</strong></span><button type="button" data-action="chat-background" aria-label="更換聊天室背景" title="更換聊天室背景">${icon('image')}</button></div>
+            <div class="msa-chat-contactbar">
+                <button class="msa-chat-back" type="button" data-nav="home" aria-label="返回探索">${icon('arrow-left')}</button>
+                ${current ? `<button class="msa-chat-contact" type="button" data-profile-character-id="${current.id}"><span class="msa-avatar" style="--msa-avatar-url:url(&quot;${escapeHtml(currentAvatar)}&quot;)"></span><span><strong>${escapeHtml(characterName(current.character))}</strong><small><b></b> 線上 · 角色主頁</small></span></button>` : `<div class="msa-chat-contact"><span><strong>尚未選擇角色</strong><small>請先返回探索</small></span></div>`}
+                <button class="msa-chat-background-button" type="button" data-action="chat-background" aria-label="更換聊天室背景" title="更換聊天室背景">${icon('image')}</button>
+            </div>
             ${hiddenCount ? `<p class="msa-chat-history-note">為保持流暢，目前顯示最近 100 則訊息；更早的 ${hiddenCount} 則仍保存在 SillyTavern。</p>` : ''}
             <div id="msa-message-list" class="msa-message-list" aria-live="polite">${visibleMessages.length ? visibleMessages.map((message, index) => `
                 <article class="msa-message ${message.is_user ? 'is-user' : 'is-character'}">
@@ -714,7 +731,7 @@ function messagesMarkup() {
                 </article>`).join('') : '<div class="msa-chat-empty">還沒有訊息，從下方輸入第一句話吧。</div>'}</div>
             <div class="msa-chat-switchers" aria-label="聊天生成設定">
                 <button type="button" data-action="switch-model" title="切換 AI 模型">${icon('microchip')}<span><small>AI MODEL</small><strong>${escapeHtml(model.label)}</strong></span>${icon('chevron-up')}</button>
-                <button type="button" data-action="switch-preset" title="切換聊天補全預設設定檔">${icon('sliders')}<span><small>CHAT PRESET</small><strong>${escapeHtml(preset.label)}</strong></span>${icon('chevron-up')}</button>
+                <button type="button" data-action="switch-preset" title="切換聊天補全預設設定檔">${icon('wand-magic-sparkles')}<span><small>CHAT PRESET</small><strong>${escapeHtml(preset.label)}</strong></span>${icon('chevron-up')}</button>
             </div>
             <div class="msa-chat-composer">
                 <textarea id="msa-chat-input" rows="2" maxlength="12000" placeholder="輸入訊息……（Enter 傳送，Shift+Enter 換行）" aria-label="聊天訊息"></textarea>
@@ -796,6 +813,25 @@ function tokensMarkup() {
         </section>`;
 }
 
+function applyCharacterFilters() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root || activeView !== 'home') return;
+    const query = characterSearchQuery.trim().toLocaleLowerCase('zh-Hant');
+    let visible = 0;
+    root.querySelectorAll('.msa-explore-card').forEach(card => {
+        const matchesQuery = !query || String(card.dataset.characterSearch || '').includes(query);
+        const matchesFilter = characterFilter === 'all'
+            || (characterFilter === 'favorites' && card.dataset.characterFavorite === 'true')
+            || (characterFilter === 'multiple' && card.dataset.characterMultiple === 'true');
+        card.hidden = !(matchesQuery && matchesFilter);
+        if (!card.hidden) visible += 1;
+    });
+    const count = document.getElementById('msa-character-result-count');
+    if (count) count.textContent = `${visible} 位角色`;
+    const empty = document.getElementById('msa-character-filter-empty');
+    if (empty) empty.hidden = visible > 0;
+}
+
 function render(view = activeView) {
     const previousView = activeView;
     activeView = view;
@@ -819,7 +855,8 @@ function render(view = activeView) {
     }[view]?.() || homeMarkup();
 
     content.innerHTML = markup;
-    document.querySelectorAll('[data-nav]').forEach(button => button.classList.toggle('is-active', button.dataset.nav === view));
+    const navView = view === 'profile' ? 'cards' : view;
+    root.querySelectorAll('.msa-bottom-nav [data-nav]').forEach(button => button.classList.toggle('is-active', button.dataset.nav === navView));
     updateCurrentAvatar();
     if (previousView !== view) {
         const scroller = root.querySelector('.msa-app-scroll');
@@ -832,6 +869,7 @@ function render(view = activeView) {
             if (list) list.scrollTop = list.scrollHeight;
         });
     }
+    if (view === 'home') applyCharacterFilters();
 }
 
 function syncViewportMetrics() {
@@ -1437,6 +1475,11 @@ async function handleClick(event) {
         render(button.dataset.nav);
         return;
     }
+    if (button.dataset.characterFilter !== undefined) {
+        characterFilter = button.dataset.characterFilter || 'all';
+        render('home');
+        return;
+    }
     if (button.dataset.profileCharacterId !== undefined) {
         selectedProfileCharacterId = Number(button.dataset.profileCharacterId);
         render('profile');
@@ -1535,6 +1578,15 @@ async function handleClick(event) {
         characters: openCharacterSheet,
         greetings: openGreetingSheet,
         notifications: openNotifications,
+        'current-profile': () => {
+            const current = getCurrentCharacter();
+            if (!current) {
+                openCharacterSheet();
+                return;
+            }
+            selectedProfileCharacterId = current.id;
+            render('profile');
+        },
         personas: openPersonaSheet,
         'chat-background': openChatBackgroundSheet,
         'clear-chat-background': clearChatBackground,
@@ -1600,6 +1652,11 @@ function handleChange(event) {
 }
 
 function handleInput(event) {
+    if (event.target?.id === 'msa-character-search') {
+        characterSearchQuery = event.target.value || '';
+        applyCharacterFilters();
+        return;
+    }
     const input = event.target.closest('[data-setting="chatFontSize"]');
     if (!input) return;
     const value = Math.min(22, Math.max(10, Number(input.value) || 12));

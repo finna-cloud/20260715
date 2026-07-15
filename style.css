@@ -478,3 +478,238 @@ body.msa-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
     #msa-root *, #msa-launcher { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Midnight Signal v2 — character discovery interface */
+#msa-root {
+    --msa-bg: #090a0d;
+    --msa-panel: #141519;
+    --msa-panel-soft: #1a1b21;
+    --msa-line: rgba(255,255,255,.1);
+    --msa-rose: #ff4f86;
+    --msa-rose-soft: #ff91b3;
+    --msa-wine: #a52e59;
+    --msa-ivory: #f7f2f4;
+    --msa-muted: #92939c;
+    --msa-mint: #67e6d3;
+    --msa-yellow: #ffd55f;
+}
+
+#msa-launcher {
+    min-width: 58px;
+    min-height: 58px;
+    border: 1px solid rgba(255,255,255,.18);
+    color: #151216;
+    background: linear-gradient(145deg, #ffe27d, #ffb83e);
+    box-shadow: 0 15px 42px rgba(0,0,0,.46), 0 6px 22px rgba(255,184,62,.25);
+}
+#msa-launcher:hover { filter: brightness(1.05); }
+
+#msa-root .msa-backdrop { background: rgba(3,3,5,.86); backdrop-filter: blur(18px) saturate(.8); }
+#msa-root .msa-phone {
+    width: min(470px, calc(100vw - 20px));
+    height: min(900px, calc(100dvh - 20px));
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 30px;
+    background: #090a0d;
+    box-shadow: 0 34px 120px rgba(0,0,0,.78), inset 0 1px rgba(255,255,255,.04);
+}
+
+#msa-root .msa-header {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    min-height: 72px;
+    padding: 12px 15px;
+    border-bottom: 1px solid rgba(255,255,255,.075);
+    background: rgba(9,10,13,.91);
+    backdrop-filter: blur(18px);
+}
+#msa-root .msa-brand { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; }
+#msa-root .msa-brand-mark { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 13px; color: #171318; background: linear-gradient(145deg, #ffe27c, #ffb840); box-shadow: 0 7px 19px rgba(255,188,64,.18); transform: rotate(-4deg); }
+#msa-root .msa-brand-mark i { font-size: 16px; }
+#msa-root .msa-brand > span:last-child { display: grid; gap: 2px; }
+#msa-root .msa-brand strong { font: 800 14px/1.05 system-ui, sans-serif; letter-spacing: .14em; }
+#msa-root .msa-brand small { color: #86868e; font-size: 8px; letter-spacing: .12em; }
+#msa-root .msa-header-actions { display: flex; align-items: center; gap: 7px; }
+#msa-root .msa-current-character, #msa-root .msa-icon-button, #msa-root .msa-close { position: relative; display: grid; width: 37px; height: 37px; padding: 0; place-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; color: #dddbe0; background: #141519; cursor: pointer; }
+#msa-root .msa-current-character .msa-avatar { width: 29px; height: 29px; border: 0; }
+#msa-root .msa-close { inset: auto; z-index: auto; }
+#msa-root .msa-notification-dot { top: 6px; right: 6px; width: 6px; height: 6px; background: var(--msa-yellow); box-shadow: 0 0 8px rgba(255,213,95,.6); }
+
+#msa-root #msa-content { padding: 19px 16px 28px; }
+#msa-root .msa-bottom-nav {
+    flex: 0 0 72px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 72px;
+    padding: 5px 6px max(5px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255,255,255,.09);
+    background: rgba(12,13,16,.97);
+    backdrop-filter: blur(20px);
+}
+#msa-root .msa-bottom-nav button { position: relative; min-width: 0; gap: 4px; border: 0; border-radius: 13px; color: #73747d; background: transparent; }
+#msa-root .msa-bottom-nav button::before { display: none; }
+#msa-root .msa-bottom-nav button i { font-size: 17px; }
+#msa-root .msa-bottom-nav button span { font-size: 8px; font-weight: 700; letter-spacing: .04em; }
+#msa-root .msa-bottom-nav button.is-active { color: #fff; background: rgba(255,255,255,.055); }
+#msa-root .msa-bottom-nav button.is-active i { color: var(--msa-yellow); filter: drop-shadow(0 3px 8px rgba(255,213,95,.25)); }
+#msa-root .msa-bottom-nav .msa-nav-chat { align-self: start; height: 62px; margin-top: -17px; border: 5px solid #090a0d; border-radius: 21px; color: #151216; background: linear-gradient(145deg, #ff6a99, #ee376f); box-shadow: 0 8px 24px rgba(238,55,111,.28); }
+#msa-root .msa-bottom-nav .msa-nav-chat i, #msa-root .msa-bottom-nav .msa-nav-chat.is-active i { color: #fff; font-size: 19px; }
+#msa-root .msa-bottom-nav .msa-nav-chat span { color: #fff; }
+
+#msa-root .msa-discover-home { display: grid; gap: 15px; }
+#msa-root .msa-discover-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+#msa-root .msa-discover-heading > span { display: grid; gap: 4px; }
+#msa-root .msa-discover-heading small, #msa-root .msa-section-heading small { color: var(--msa-yellow); font-size: 7px; font-weight: 800; letter-spacing: .18em; }
+#msa-root .msa-discover-heading strong { font: 800 25px/1.1 system-ui, "Noto Sans TC", sans-serif; letter-spacing: -.04em; }
+#msa-root .msa-discover-heading > button { min-height: 34px; padding: 0 11px; border: 1px solid rgba(255,213,95,.28); border-radius: 11px; color: #ffe49a; background: rgba(255,213,95,.07); font-size: 9px; font-weight: 700; cursor: pointer; }
+
+#msa-root .msa-character-search { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 48px; padding: 0 13px; border: 1px solid rgba(255,255,255,.11); border-radius: 15px; color: #70717a; background: #141519; }
+#msa-root .msa-character-search:focus-within { border-color: rgba(255,213,95,.5); box-shadow: 0 0 0 3px rgba(255,213,95,.06); }
+#msa-root .msa-character-search input { min-width: 0; border: 0; color: #f5f2f3; background: transparent; outline: none; font: 12px/1.4 inherit; }
+#msa-root .msa-character-search input::placeholder { color: #666770; }
+#msa-root .msa-character-search kbd { min-width: 26px; padding: 4px 6px; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; color: #888992; background: #1d1e23; font: 8px/1 system-ui; text-align: center; }
+#msa-root .msa-character-filters { display: flex; gap: 7px; margin: -3px 0 0; overflow-x: auto; scrollbar-width: none; }
+#msa-root .msa-character-filters::-webkit-scrollbar { display: none; }
+#msa-root .msa-character-filters button { flex: 0 0 auto; min-height: 32px; padding: 0 11px; border: 1px solid rgba(255,255,255,.09); border-radius: 999px; color: #8a8b94; background: #121317; font-size: 9px; cursor: pointer; }
+#msa-root .msa-character-filters button.is-active { border-color: #ff4f86; color: #fff; background: rgba(255,79,134,.18); box-shadow: inset 0 0 0 1px rgba(255,79,134,.08); }
+
+#msa-root .msa-current-session { position: relative; display: grid; min-height: 178px; overflow: hidden; align-content: end; padding: 18px; border: 1px solid rgba(255,255,255,.11); border-radius: 21px; background-color: #15161a; background-image: var(--msa-current-avatar), radial-gradient(circle at 70% 20%, #583346, #15161a 66%); background-position: center 28%; background-size: cover; box-shadow: 0 14px 35px rgba(0,0,0,.24); }
+#msa-root .msa-current-session-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,6,9,.96), rgba(5,6,9,.68) 62%, rgba(5,6,9,.22)), linear-gradient(0deg, rgba(5,6,9,.95), transparent 60%); }
+#msa-root .msa-current-session-copy, #msa-root .msa-current-session-stats { position: relative; z-index: 1; }
+#msa-root .msa-current-session-copy { display: grid; max-width: 72%; gap: 5px; }
+#msa-root .msa-current-session-copy small { color: #9b9ca4; font-size: 7px; font-weight: 800; letter-spacing: .16em; }
+#msa-root .msa-current-session-copy small b { display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--msa-mint); box-shadow: 0 0 9px var(--msa-mint); }
+#msa-root .msa-current-session-copy strong { overflow: hidden; font: 800 23px/1.08 system-ui, "Noto Sans TC", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-current-session-copy p { display: -webkit-box; overflow: hidden; margin: 0; color: #aaa8ae; font-size: 9px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#msa-root .msa-current-session-stats { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 13px; }
+#msa-root .msa-current-session-stats span { color: #777881; font-size: 8px; }
+#msa-root .msa-current-session-stats span b { color: #d7d4d7; }
+#msa-root .msa-current-session-stats button { min-height: 37px; padding: 0 13px; border: 0; border-radius: 11px; color: #171318; background: var(--msa-yellow); font-size: 9px; font-weight: 800; cursor: pointer; }
+
+#msa-root .msa-section-heading { display: flex; align-items: end; justify-content: space-between; margin-top: 3px; }
+#msa-root .msa-section-heading > span { display: grid; gap: 3px; }
+#msa-root .msa-section-heading strong { font-size: 17px; }
+#msa-root .msa-section-heading output { color: #777881; font-size: 9px; }
+#msa-root .msa-explore-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+#msa-root .msa-explore-card { min-width: 0; overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: #141519; box-shadow: 0 9px 25px rgba(0,0,0,.15); }
+#msa-root .msa-explore-card[hidden] { display: none; }
+#msa-root .msa-explore-cover { position: relative; display: block; width: 100%; aspect-ratio: .82; overflow: hidden; padding: 0; border: 0; color: #fff; background-color: #191a20; background-image: var(--msa-card-avatar), radial-gradient(circle at 50% 18%, #714158, #17181d 68%); background-position: center 25%; background-size: cover; text-align: left; cursor: pointer; }
+#msa-root .msa-explore-cover-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3,4,6,.02), rgba(3,4,6,.08) 44%, rgba(5,6,9,.96)); }
+#msa-root .msa-explore-badges { position: absolute; top: 9px; right: 9px; left: 9px; display: flex; justify-content: space-between; }
+#msa-root .msa-explore-badges b { padding: 5px 7px; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; color: #e7e4e6; background: rgba(7,8,11,.68); backdrop-filter: blur(8px); font-size: 7px; }
+#msa-root .msa-explore-badges b.is-favorite { margin-left: auto; color: #ff7da6; }
+#msa-root .msa-explore-title { position: absolute; right: 11px; bottom: 11px; left: 11px; display: grid; gap: 3px; }
+#msa-root .msa-explore-title strong { overflow: hidden; font-size: 15px; font-weight: 800; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-explore-title small { color: #aaa8ae; font-size: 7px; }
+#msa-root .msa-explore-card-copy { display: grid; gap: 9px; padding: 10px; }
+#msa-root .msa-explore-card-copy p { display: -webkit-box; min-height: 37px; overflow: hidden; margin: 0; color: #8e8f98; font-size: 8px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+#msa-root .msa-explore-card-copy > div { display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: 6px; }
+#msa-root .msa-explore-card-copy button { min-height: 34px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; color: #efebed; background: #202127; font-size: 8px; font-weight: 700; cursor: pointer; }
+#msa-root .msa-explore-card-copy button:first-child { border-color: rgba(255,79,134,.28); background: rgba(255,79,134,.13); }
+#msa-root .msa-explore-card-copy .msa-explore-favorite { padding: 0; color: #7c7d85; }
+#msa-root .msa-explore-card-copy .msa-explore-favorite.is-favorite { color: #ff6697; background: rgba(255,79,134,.12); }
+#msa-root .msa-character-filter-empty { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 7px; color: #666770; text-align: center; }
+#msa-root .msa-character-filter-empty[hidden] { display: none; }
+#msa-root .msa-character-filter-empty > i { color: #ff7aa4; font-size: 24px; }
+#msa-root .msa-character-filter-empty strong { color: #bbb8bd; font-size: 13px; }
+#msa-root .msa-character-filter-empty span { font-size: 9px; }
+
+#msa-root .msa-character-profile { gap: 12px; }
+#msa-root .msa-profile-topbar { display: flex; align-items: center; justify-content: space-between; }
+#msa-root .msa-profile-topbar button { min-height: 34px; padding: 0 11px; border: 1px solid rgba(255,255,255,.1); border-radius: 11px; color: #aaa8af; background: #141519; font-size: 9px; cursor: pointer; }
+#msa-root .msa-profile-topbar button.is-favorite { border-color: rgba(255,79,134,.35); color: #ff7ca5; background: rgba(255,79,134,.1); }
+#msa-root .msa-profile-cover { min-height: 430px; border: 0; border-radius: 23px; box-shadow: 0 17px 42px rgba(0,0,0,.3); cursor: default; }
+#msa-root .msa-profile-cover-shade { background: linear-gradient(180deg, rgba(3,4,6,.02), rgba(3,4,6,.08) 42%, rgba(5,6,9,.96)); }
+#msa-root .msa-profile-cover-copy { right: 18px; bottom: 52px; left: 18px; gap: 5px; }
+#msa-root .msa-profile-cover-copy small { color: var(--msa-yellow); font: 800 7px/1 system-ui; }
+#msa-root .msa-profile-cover-copy strong { font: 800 29px/1.08 system-ui, "Noto Sans TC", sans-serif; letter-spacing: -.04em; }
+#msa-root .msa-profile-cover-copy em { overflow: hidden; color: #aba9af; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-profile-counts { position: absolute; right: 18px; bottom: 17px; left: 18px; display: flex; gap: 7px; }
+#msa-root .msa-profile-counts b { padding: 6px 8px; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: #c8c5c9; background: rgba(8,9,12,.65); backdrop-filter: blur(9px); font-size: 7px; }
+#msa-root .msa-profile-counts b:last-child { color: var(--msa-mint); }
+#msa-root .msa-profile-actions { grid-template-columns: 1.35fr 1fr; }
+#msa-root .msa-profile-actions button { min-height: 49px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; color: #e9e5e7; background: #191a1f; font-size: 10px; font-weight: 800; }
+#msa-root .msa-profile-actions button.is-primary { border: 0; color: #fff; background: linear-gradient(145deg, #ff5f91, #e9346c); box-shadow: 0 8px 23px rgba(233,52,108,.2); }
+#msa-root .msa-profile-tabs { display: flex; gap: 16px; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,.08); color: #686972; scrollbar-width: none; }
+#msa-root .msa-profile-tabs span { position: relative; flex: 0 0 auto; padding: 10px 2px; font-size: 9px; font-weight: 700; }
+#msa-root .msa-profile-tabs span.is-active { color: #f5f1f3; }
+#msa-root .msa-profile-tabs span.is-active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background: var(--msa-rose); content: ""; }
+#msa-root .msa-profile-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+#msa-root .msa-profile-section { border: 1px solid rgba(255,255,255,.085); border-radius: 16px; background: #141519; }
+#msa-root .msa-profile-section > small { color: var(--msa-yellow); font-size: 7px; font-weight: 800; }
+#msa-root .msa-profile-section > strong { font: 800 14px/1.3 system-ui, "Noto Sans TC", sans-serif; }
+#msa-root .msa-profile-section > p { color: #a3a2aa; font-size: 10px; line-height: 1.75; }
+#msa-root .msa-profile-section.is-first-message { border-color: rgba(255,79,134,.24); background: linear-gradient(145deg, rgba(255,79,134,.1), #141519 58%); }
+
+#msa-root.msa-view-messages .msa-header { display: none; }
+#msa-root.msa-view-messages #msa-content { padding: 0; }
+#msa-root .msa-chat-page { position: relative; padding: 0; }
+#msa-root .msa-chat-contactbar { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; flex: 0 0 auto; align-items: center; gap: 9px; min-height: 67px; padding: 10px 13px; border-bottom: 1px solid rgba(255,255,255,.085); background: rgba(10,11,14,.94); backdrop-filter: blur(17px); }
+#msa-root .msa-chat-back, #msa-root .msa-chat-background-button { display: grid; width: 38px; height: 38px; padding: 0; place-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; color: #c4c1c6; background: #16171b; cursor: pointer; }
+#msa-root .msa-chat-contact { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+#msa-root .msa-chat-contact .msa-avatar { width: 39px; height: 39px; border-color: rgba(255,255,255,.15); }
+#msa-root .msa-chat-contact > span:last-child { display: grid; min-width: 0; gap: 3px; }
+#msa-root .msa-chat-contact strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-chat-contact small { color: #74757d; font-size: 7px; }
+#msa-root .msa-chat-contact small b { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: var(--msa-mint); }
+#msa-root .msa-chat-page .msa-message-list { gap: 9px; padding: 14px 14px 10px; }
+#msa-root .msa-message { max-width: 86%; padding: 11px 13px; border: 1px solid rgba(255,255,255,.07); border-radius: 16px 16px 16px 5px; background: #171820; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+#msa-root .msa-message.is-user { border-color: rgba(255,79,134,.22); border-radius: 16px 16px 5px 16px; background: linear-gradient(145deg, rgba(184,48,93,.84), rgba(113,34,64,.88)); }
+#msa-root .msa-message small { color: #8f9099; font-size: 8px; }
+#msa-root .msa-message.is-user small { color: #ffc2d5; }
+#msa-root .msa-message p { margin-top: 4px; color: #d9d6da; }
+#msa-root .msa-chat-switchers { gap: 6px; margin: 6px 12px 0; }
+#msa-root .msa-chat-switchers > button { min-height: 43px; border-color: rgba(255,255,255,.1); border-radius: 12px; color: #d8d5d9; background: #15161b; }
+#msa-root .msa-chat-switchers > button:nth-child(2) { border-color: rgba(255,255,255,.1); background: #15161b; }
+#msa-root .msa-chat-switchers > button > i:first-child, #msa-root .msa-chat-switchers > button:nth-child(2) > i:first-child { color: var(--msa-yellow); }
+#msa-root .msa-chat-switchers small, #msa-root .msa-chat-switchers button:nth-child(2) small { color: #777880; }
+#msa-root .msa-chat-composer { grid-template-columns: minmax(0, 1fr) 44px 48px; gap: 6px; margin: 6px 12px 0; padding: 8px 0 0; border-top-color: rgba(255,255,255,.07); }
+#msa-root .msa-chat-composer textarea { min-height: 48px; border-color: rgba(255,255,255,.1); border-radius: 15px; color: #f1edef; background: #15161a; }
+#msa-root .msa-chat-composer button { min-height: 48px; border: 0; border-radius: 15px; background: linear-gradient(145deg, #ff6394, #e8366d); box-shadow: 0 7px 20px rgba(232,54,109,.2); }
+#msa-root .msa-chat-composer .msa-persona-button { border: 1px solid rgba(255,213,95,.2); color: #ffe38d; background: rgba(255,213,95,.08); box-shadow: none; }
+#msa-root .msa-chat-bridge-status { margin: 5px 12px 8px; color: #56575e; }
+#msa-root.msa-has-chat-background .msa-chat-page .msa-message-list { margin: 0; border: 0; border-radius: 0; background-image: linear-gradient(180deg, rgba(6,7,10,.5), rgba(6,7,10,.76)), var(--msa-chat-background-image); }
+
+#msa-root .msa-page-title { min-height: 55px; margin-bottom: 13px; padding-bottom: 11px; border-bottom-color: rgba(255,255,255,.08); }
+#msa-root .msa-page-title small { color: var(--msa-yellow); font-size: 7px; font-weight: 800; }
+#msa-root .msa-page-title strong { font: 800 21px/1.2 system-ui, "Noto Sans TC", sans-serif; letter-spacing: -.03em; }
+#msa-root .msa-card-actions button, #msa-root .msa-setting-row, #msa-root .msa-managed-card, #msa-root .msa-character-card { border-color: rgba(255,255,255,.09); background: #141519; }
+#msa-root .msa-card-actions button:first-child { border-color: rgba(255,213,95,.23); background: rgba(255,213,95,.065); }
+#msa-root .msa-card-actions button > i { color: var(--msa-yellow); }
+#msa-root .msa-managed-card.is-current { border-color: rgba(103,230,211,.33); background: rgba(103,230,211,.06); }
+#msa-root .msa-background-setting-button { border-color: rgba(255,213,95,.2); background: rgba(255,213,95,.055); }
+#msa-root .msa-background-setting-icon, #msa-root .msa-background-setting-button > i { color: var(--msa-yellow); background: rgba(255,213,95,.08); }
+#msa-root .msa-font-setting output { border-color: rgba(255,79,134,.26); color: #ff9ab9; background: rgba(255,79,134,.08); }
+#msa-root .msa-save-button { border: 0; background: linear-gradient(145deg, #ff5e91, #e63269); }
+
+#msa-root .msa-sheet-backdrop { background: rgba(2,3,5,.74); backdrop-filter: blur(12px); }
+#msa-root .msa-sheet > section { width: min(470px, 100vw); border-color: rgba(255,255,255,.12); border-radius: 25px 25px 0 0; background: #0e0f12; }
+#msa-root .msa-sheet header { border-bottom-color: rgba(255,255,255,.08); }
+#msa-root .msa-sheet header small { color: var(--msa-yellow); }
+#msa-root .msa-sheet header button { border-color: rgba(255,255,255,.1); background: #17181c; }
+#msa-root .msa-native-setting-meta, #msa-root .msa-persona-intro { border-color: rgba(255,213,95,.2); background: rgba(255,213,95,.055); }
+#msa-root .msa-native-setting-meta > i { color: var(--msa-yellow); background: rgba(255,213,95,.08); }
+#msa-root .msa-native-setting-option, #msa-root .msa-persona-option, #msa-root .msa-greeting-list button { border-color: rgba(255,255,255,.09); background: #17181d; }
+#msa-root .msa-native-setting-option.is-current, #msa-root .msa-persona-option.is-current, #msa-root .msa-greeting-list button.is-current { border-color: rgba(255,79,134,.42); background: rgba(255,79,134,.09); box-shadow: inset 3px 0 #ff4f86; }
+#msa-root .msa-native-setting-option > i, #msa-root .msa-persona-option > i { color: #ff78a3; }
+
+@media (max-width: 520px) {
+    #msa-root .msa-phone { width: 100%; height: 100%; border-radius: 0; }
+    #msa-root .msa-header { padding-top: max(10px, env(safe-area-inset-top)); }
+    #msa-root #msa-content { padding-right: 14px; padding-left: 14px; }
+    #msa-root .msa-bottom-nav { flex-basis: calc(72px + env(safe-area-inset-bottom)); }
+    #msa-root .msa-current-session { min-height: 164px; }
+    #msa-root .msa-profile-cover { min-height: min(490px, 57vh); }
+    #msa-root.msa-view-messages #msa-content { padding: 0; }
+    #msa-root .msa-chat-composer textarea, #msa-root .msa-character-search input { font-size: 16px; }
+}
+
+@media (max-width: 350px) {
+    #msa-root .msa-explore-grid { gap: 8px; }
+    #msa-root .msa-explore-card-copy { padding: 8px; }
+    #msa-root .msa-explore-card-copy button:first-child { font-size: 0; }
+    #msa-root .msa-explore-card-copy button:first-child i { font-size: 10px; }
+    #msa-root .msa-profile-detail-grid { grid-template-columns: 1fr; }
+    #msa-root .msa-brand small { display: none; }
+    #msa-root .msa-header-actions { gap: 4px; }
+}

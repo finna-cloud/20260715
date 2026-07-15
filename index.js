@@ -722,7 +722,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.2.2</p>
+            <p class="msa-version">Midnight Signal APP · v2.2.3</p>
         </section>`;
 }
 
@@ -761,8 +761,8 @@ function messagesMarkup() {
                     <p>${escapeHtml(fullMessageText(message.mes))}</p>
                 </article>`).join('') : '<div class="msa-chat-empty">還沒有訊息，從下方輸入第一句話吧。</div>'}</div>
             <div class="msa-chat-switchers" aria-label="聊天生成設定">
-                <button type="button" data-action="switch-model" title="切換 AI 模型">${icon('microchip')}<span><small>AI MODEL</small><strong>${escapeHtml(model.label)}</strong></span>${icon('chevron-up')}</button>
-                <button type="button" data-action="switch-preset" title="切換聊天補全預設設定檔">${icon('wand-magic-sparkles')}<span><small>CHAT PRESET</small><strong>${escapeHtml(preset.label)}</strong></span>${icon('chevron-up')}</button>
+                <button class="msa-chat-switcher-icon" type="button" data-action="switch-model" aria-label="切換 AI 模型，目前為 ${escapeHtml(model.label)}" title="AI 模型：${escapeHtml(model.label)}">${icon('microchip')}</button>
+                <button class="msa-chat-switcher-icon" type="button" data-action="switch-preset" aria-label="切換聊天補全預設設定檔，目前為 ${escapeHtml(preset.label)}" title="聊天補全預設：${escapeHtml(preset.label)}">${icon('wand-magic-sparkles')}</button>
             </div>
             <div class="msa-chat-composer">
                 <textarea id="msa-chat-input" rows="2" maxlength="12000" placeholder="輸入訊息……（Enter 傳送，Shift+Enter 換行）" aria-label="聊天訊息"></textarea>

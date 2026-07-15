@@ -928,3 +928,41 @@ body.msa-open { overflow: hidden; }
     #msa-root .msa-current-session-stats { align-items: stretch; flex-direction: column; }
     #msa-root .msa-current-session-stats .msa-session-token-button { width: 100%; }
 }
+
+/* v2.2.3 — compact model and preset icon controls */
+#msa-root .msa-chat-switchers {
+    display: flex;
+    grid-template-columns: none;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    width: auto;
+    margin: 7px 12px 0;
+}
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon,
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon:nth-child(2) {
+    display: grid;
+    grid-template-columns: none;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(111,232,213,.28);
+    border-radius: 14px;
+    color: #7de8d7;
+    background: rgba(25,56,53,.4);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.018);
+}
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon > i:first-child,
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon:nth-child(2) > i:first-child {
+    color: #7de8d7;
+    font-size: calc(17px * var(--msa-ui-font-scale, 1));
+    text-align: center;
+}
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon:hover,
+#msa-root .msa-chat-switchers > .msa-chat-switcher-icon:focus-visible {
+    border-color: rgba(125,232,215,.62);
+    background: rgba(49,114,104,.28);
+}

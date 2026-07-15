@@ -972,7 +972,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.4.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.4.1</p>
         </section>`;
 }
 

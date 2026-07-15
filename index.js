@@ -999,7 +999,7 @@ function characterManagementMarkup() {
             <p class="msa-card-manager-note">角色封面可重新上傳高畫質原圖，不會在瀏覽器端壓縮；刪除角色卡時會保留原有聊天紀錄。</p>
             <div class="msa-managed-card-list">${characters.length ? characters.map(({ character, id }) => `
                 <article class="msa-managed-card ${Number(context()?.characterId) === id ? 'is-current' : ''}">
-                    <button type="button" class="msa-managed-card-main" data-character-id="${id}">
+                    <button type="button" class="msa-managed-card-main" data-profile-character-id="${id}" aria-label="查看 ${escapeHtml(characterName(character))} 的角色主頁" title="查看角色主頁">
                         <span class="msa-avatar" style="--msa-avatar-url:url('${escapeHtml(avatarUrl(character))}')"></span>
                         <span><strong>${escapeHtml(characterName(character))}</strong><small>${escapeHtml(excerpt(character.description || character.data?.description || '尚未填寫角色描述', 58))}</small></span>
                     </button>
@@ -1093,7 +1093,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.5.2</p>
+            <p class="msa-version">Midnight Signal APP · v2.5.3</p>
         </section>`;
 }
 

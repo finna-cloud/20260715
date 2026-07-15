@@ -7,7 +7,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "OpenAI for yu",
-  "version": "2.5.2",
+  "version": "2.5.3",
   "homePage": "https://github.com/finna-cloud/20260711-1",
   "auto_update": true,
   "minimum_client_version": "1.13.0"

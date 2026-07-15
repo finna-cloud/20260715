@@ -797,6 +797,7 @@ body.msa-open { overflow: hidden; }
 #msa-root .msa-card-actions button > i { color: #79e8d7; }
 #msa-root .msa-managed-card { grid-template-columns: minmax(0, 1fr) 52px 44px; overflow: hidden; }
 #msa-root .msa-managed-card.is-current { border-color: rgba(111,232,213,.38); background: rgba(58,152,140,.075); }
+#msa-root .msa-managed-card-main:hover, #msa-root .msa-managed-card-main:focus-visible { background: rgba(111,232,213,.055); outline: none; }
 #msa-root .msa-managed-card-upload { display: grid; align-content: center; justify-items: center; gap: 3px; margin: 7px 3px; padding: 0; border: 1px solid rgba(111,232,213,.18); border-radius: 12px; color: #9eece1; background: rgba(71,167,155,.09); cursor: pointer; }
 #msa-root .msa-managed-card-upload span { font-size: calc(7px * var(--msa-ui-font-scale, 1)); }
 #msa-root .msa-managed-card-delete { margin: 7px 7px 7px 3px; border: 1px solid rgba(255,111,145,.16); border-radius: 12px; }

@@ -635,9 +635,11 @@ body.msa-open { overflow: hidden; }
 #msa-root .msa-profile-actions button { min-height: 49px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; color: #e9e5e7; background: #191a1f; font-size: calc(10px * var(--msa-ui-font-scale, 1)); font-weight: 800; }
 #msa-root .msa-profile-actions button.is-primary { border: 0; color: #fff; background: linear-gradient(145deg, #ff5f91, #e9346c); box-shadow: 0 8px 23px rgba(233,52,108,.2); }
 #msa-root .msa-profile-tabs { display: flex; gap: 16px; overflow-x: auto; border-bottom: 1px solid rgba(255,255,255,.08); color: #686972; scrollbar-width: none; }
-#msa-root .msa-profile-tabs span { position: relative; flex: 0 0 auto; padding: 10px 2px; font-size: calc(9px * var(--msa-ui-font-scale, 1)); font-weight: 700; }
-#msa-root .msa-profile-tabs span.is-active { color: #f5f1f3; }
-#msa-root .msa-profile-tabs span.is-active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background: var(--msa-rose); content: ""; }
+#msa-root .msa-profile-tabs span, #msa-root .msa-profile-tabs button { position: relative; flex: 0 0 auto; padding: 10px 2px; border: 0; border-radius: 9px; color: inherit; background: transparent; font-size: calc(9px * var(--msa-ui-font-scale, 1)); font-weight: 700; }
+#msa-root .msa-profile-tabs button { cursor: pointer; }
+#msa-root .msa-profile-tabs button:hover, #msa-root .msa-profile-tabs button:focus-visible { color: #f5f1f3; background: rgba(111,232,213,.07); }
+#msa-root .msa-profile-tabs span.is-active, #msa-root .msa-profile-tabs button.is-active { color: #f5f1f3; }
+#msa-root .msa-profile-tabs span.is-active::after, #msa-root .msa-profile-tabs button.is-active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background: var(--msa-rose); content: ""; }
 #msa-root .msa-profile-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 #msa-root .msa-profile-section { border: 1px solid rgba(255,255,255,.085); border-radius: 16px; background: #141519; }
 #msa-root .msa-profile-section > small { color: var(--msa-yellow); font-size: calc(7px * var(--msa-ui-font-scale, 1)); font-weight: 800; }

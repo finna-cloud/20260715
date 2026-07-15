@@ -654,12 +654,28 @@ function characterManagementMarkup() {
         </section>`;
 }
 
-function characterProfileMarkup() {
+function getProfileCharacter() {
     const characters = context()?.characters || [];
-    const hasSelectedProfile = selectedProfileCharacterId !== null && selectedProfileCharacterId !== undefined && Number.isInteger(Number(selectedProfileCharacterId));
+    const hasSelectedProfile = selectedProfileCharacterId !== null
+        && selectedProfileCharacterId !== undefined
+        && Number.isInteger(Number(selectedProfileCharacterId));
     const id = hasSelectedProfile ? Number(selectedProfileCharacterId) : Number(context()?.characterId);
     const character = characters[id];
-    if (!character) return emptyMarkup('找不到角色卡', '請回到主頁重新選擇角色。');
+    return character ? { character, id } : null;
+}
+
+function profileTabsMarkup(activeTab = 'profile') {
+    return `<div class="msa-profile-tabs" role="tablist" aria-label="角色頁面">
+        <button class="${activeTab === 'profile' ? 'is-active' : ''}" type="button" data-action="profile" role="tab" aria-selected="${activeTab === 'profile'}">角色資料</button>
+        <button class="${activeTab === 'relationship' ? 'is-active' : ''}" type="button" data-action="relationship" role="tab" aria-selected="${activeTab === 'relationship'}">關係狀態</button>
+        <button class="${activeTab === 'memories' ? 'is-active' : ''}" type="button" data-action="memories" role="tab" aria-selected="${activeTab === 'memories'}">重要記憶</button>
+    </div>`;
+}
+
+function characterProfileMarkup() {
+    const selected = getProfileCharacter();
+    if (!selected) return emptyMarkup('找不到角色卡', '請回到主頁重新選擇角色。');
+    const { character, id } = selected;
     const description = character.description || character.data?.description || '尚未填寫角色描述。';
     const personality = character.personality || character.data?.personality || '尚未填寫性格。';
     const scenario = character.scenario || character.data?.scenario || '尚未填寫場景。';
@@ -679,7 +695,7 @@ function characterProfileMarkup() {
                 <button class="is-primary" type="button" data-start-character-id="${id}">${icon('comment-dots')} 與角色對話</button>
                 <button type="button" data-profile-greetings-id="${id}">${icon('shuffle')} 選擇開場白</button>
             </div>
-            <div class="msa-profile-tabs"><span class="is-active">角色資料</span><span>世界觀</span><span>開場預覽</span></div>
+            ${profileTabsMarkup('profile')}
             <article class="msa-profile-section"><small>${icon('address-card')} DESCRIPTION</small><strong>角色設定</strong><p>${escapeHtml(fullMessageText(description))}</p></article>
             <div class="msa-profile-detail-grid">
                 <article class="msa-profile-section"><small>${icon('fingerprint')} PERSONALITY</small><strong>性格</strong><p>${escapeHtml(fullMessageText(personality))}</p></article>
@@ -722,7 +738,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.2.3</p>
+            <p class="msa-version">Midnight Signal APP · v2.2.4</p>
         </section>`;
 }
 
@@ -774,14 +790,18 @@ function messagesMarkup() {
 }
 
 function relationshipMarkup() {
-    const character = getCurrentCharacter()?.character;
-    if (!character) return emptyMarkup('請先選擇角色', '關係筆記會分別儲存在每一名角色之下。');
+    const selected = getProfileCharacter();
+    if (!selected) return emptyMarkup('請先選擇角色', '關係筆記會分別儲存在每一名角色之下。');
+    const { character, id } = selected;
     const key = characterKey(character);
     const value = settings().relationshipNotes[key] || '';
+    const isCurrentChat = Number(context()?.characterId) === id;
+    const rounds = isCurrentChat ? Math.max(0, (context()?.chat?.length || 1) - 1) : 0;
     return `
         <section class="msa-page">
             <div class="msa-page-title"><span><small>RELATIONSHIP</small><strong>與 ${escapeHtml(characterName(character))} 的關係</strong></span></div>
-            <div class="msa-stat-card"><span>對話回合</span><strong>${Math.max(0, (context()?.chat?.length || 1) - 1)}</strong></div>
+            ${profileTabsMarkup('relationship')}
+            <div class="msa-stat-card"><span>${isCurrentChat ? '目前對話回合' : '目前未載入此角色聊天'}</span><strong>${rounds}</strong></div>
             <label class="msa-textarea-label">關係備忘錄
                 <textarea id="msa-relationship-note" rows="9" placeholder="例如：目前互相信任、約定下次去看海……">${escapeHtml(value)}</textarea>
             </label>
@@ -790,13 +810,15 @@ function relationshipMarkup() {
 }
 
 function memoriesMarkup() {
-    const character = getCurrentCharacter()?.character;
-    if (!character) return emptyMarkup('請先選擇角色', '你可以為不同角色保存獨立的回憶。');
+    const selected = getProfileCharacter();
+    if (!selected) return emptyMarkup('請先選擇角色', '你可以為不同角色保存獨立的回憶。');
+    const { character } = selected;
     const key = characterKey(character);
     const list = settings().memories[key] || [];
     return `
         <section class="msa-page">
             <div class="msa-page-title"><span><small>MEMORIES</small><strong>和 ${escapeHtml(characterName(character))} 的回憶</strong></span></div>
+            ${profileTabsMarkup('memories')}
             <div class="msa-add-row"><input id="msa-memory-input" type="text" maxlength="240" placeholder="記下一件重要的事"><button type="button" data-action="add-memory">${icon('plus')}</button></div>
             <div class="msa-memory-list">${list.length ? list.map((item, index) => `
                 <article><span>${icon('heart')}<p>${escapeHtml(item)}</p></span><button type="button" data-delete-memory="${index}" aria-label="刪除">${icon('trash')}</button></article>`).join('') : '<p class="msa-list-hint">尚未新增回憶。</p>'}</div>
@@ -1469,7 +1491,7 @@ function toggleFavorite(id) {
 }
 
 function saveRelationship() {
-    const character = getCurrentCharacter()?.character;
+    const character = getProfileCharacter()?.character;
     const textarea = document.getElementById('msa-relationship-note');
     if (!character || !textarea) return;
     settings().relationshipNotes[characterKey(character)] = textarea.value.trim();
@@ -1478,7 +1500,7 @@ function saveRelationship() {
 }
 
 function addMemory() {
-    const character = getCurrentCharacter()?.character;
+    const character = getProfileCharacter()?.character;
     const input = document.getElementById('msa-memory-input');
     if (!character || !input?.value.trim()) return;
     const key = characterKey(character);
@@ -1489,7 +1511,7 @@ function addMemory() {
 }
 
 function deleteMemory(index) {
-    const character = getCurrentCharacter()?.character;
+    const character = getProfileCharacter()?.character;
     if (!character) return;
     const list = settings().memories[characterKey(character)] || [];
     list.splice(Number(index), 1);
@@ -1696,6 +1718,7 @@ async function handleClick(event) {
             render('tokens');
             calculateCurrentChatTokens();
         },
+        profile: () => render('profile'),
         messages: () => render('messages'),
         relationship: () => render('relationship'),
         memories: () => render('memories'),

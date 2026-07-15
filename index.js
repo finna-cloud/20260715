@@ -708,6 +708,40 @@ async function createNewCharacterChat() {
     notify('已建立新的獨立聊天室。', 'success');
 }
 
+async function createCharacterChatWithGreeting(index) {
+    const current = getCurrentCharacter();
+    const ctx = context();
+    if (!current) throw new Error('請先選擇一名角色。');
+
+    const greetings = getGreetings(current.character);
+    if (!greetings[Number(index)]) throw new Error('找不到這個開場白。');
+
+    const core = await getCoreModule();
+    if (typeof core.doNewChat !== 'function') throw new Error('此版本無法建立新聊天室。');
+    await core.doNewChat({ deleteCurrentChat: false });
+
+    if (!ctx.chatMetadata || typeof ctx.chatMetadata !== 'object') ctx.chatMetadata = {};
+    ctx.chatMetadata[ROLEPLAY_CHAT_KEY] = {
+        ...emptyChatRoleplayState(current.character),
+        migratedFromLegacy: true,
+    };
+    ctx.chatMetadata[TOKEN_CHAT_KEY] = emptyTokenUsage();
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+        if (ctx.chat?.[0] && !ctx.chat[0].is_user) break;
+        await sleep(50);
+    }
+    if (!ctx.chat?.[0] || ctx.chat[0].is_user) {
+        throw new Error('新聊天室已建立，但角色開場白尚未載入。請重新整理後再試。');
+    }
+
+    await applyGreeting(Number(index));
+    await saveChatRoleplayState();
+    chatThreads = [];
+    chatThreadsError = '';
+    await syncRoleplayContextPrompt();
+}
+
 function normalizedChatFileName(fileName) {
     const name = String(fileName || '').replace(/\.jsonl$/i, '').trim();
     if (!name || name === '.' || name === '..' || /[\\/\0]/.test(name)) {
@@ -1059,7 +1093,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.5.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.5.1</p>
         </section>`;
 }
 
@@ -2141,12 +2175,12 @@ async function handleClick(event) {
     if (button.dataset.greetingIndex !== undefined) {
         button.disabled = true;
         try {
-            await applyGreeting(Number(button.dataset.greetingIndex));
+            await createCharacterChatWithGreeting(Number(button.dataset.greetingIndex));
             closeSheet();
             render('messages');
-            notify('已套用新的開場白並開啟聊天室。', 'success');
+            notify('已使用所選開場白建立新聊天室。', 'success');
         } catch (error) {
-            notify(error.message || '開場白切換失敗。', 'error');
+            notify(error.message || '無法使用這個開場白建立聊天室。', 'error');
         } finally {
             button.disabled = false;
         }

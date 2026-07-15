@@ -972,7 +972,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.4.4</p>
+            <p class="msa-version">Midnight Signal APP · v2.4.5</p>
         </section>`;
 }
 
@@ -2053,8 +2053,8 @@ async function handleClick(event) {
         try {
             await applyGreeting(Number(button.dataset.greetingIndex));
             closeSheet();
-            render('home');
-            notify('已套用新的開場白。', 'success');
+            render('messages');
+            notify('已套用新的開場白並開啟聊天室。', 'success');
         } catch (error) {
             notify(error.message || '開場白切換失敗。', 'error');
         } finally {

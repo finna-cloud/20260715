@@ -1127,15 +1127,37 @@ body.msa-open { overflow: hidden; }
 #msa-root .msa-thread-meta { display: flex; align-items: center; gap: 8px; color: #716b7b; font-size: calc(7px * var(--msa-ui-font-scale, 1)); }
 #msa-root .msa-thread-meta b { color: #9c94aa; }
 #msa-root .msa-thread-main > i { color: #746d80; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
-#msa-root .msa-thread-rename {
-    align-self: stretch;
+#msa-root .msa-thread-actions {
+    display: grid;
+    min-width: 0;
+    grid-template-rows: 1fr 1fr;
+    gap: 6px;
     margin: 8px 8px 8px 0;
+}
+#msa-root .msa-thread-actions > button {
+    min-width: 0;
+    padding: 0;
     border: 1px solid rgba(164,141,255,.18);
-    border-radius: 13px;
+    border-radius: 11px;
     color: #c4b7ee;
     background: rgba(135,109,235,.08);
     cursor: pointer;
 }
+#msa-root .msa-thread-actions > .msa-thread-delete { border-color: rgba(255,113,143,.23); color: #ff9bb1; background: rgba(154,45,70,.1); }
+#msa-root .msa-thread-actions > .msa-thread-delete:hover { border-color: rgba(255,113,143,.48); background: rgba(154,45,70,.2); }
+#msa-root .msa-delete-chat-confirm { display: grid; justify-items: center; gap: 12px; padding: 5px 2px 2px; text-align: center; }
+#msa-root .msa-delete-chat-icon { display: grid; width: 58px; height: 58px; place-items: center; border: 1px solid rgba(255,113,143,.28); border-radius: 19px; color: #ff91aa; background: rgba(154,45,70,.13); font-size: calc(22px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-delete-chat-confirm > strong { color: #f5edf3; font-size: calc(15px * var(--msa-ui-font-scale, 1)); line-height: 1.4; overflow-wrap: anywhere; }
+#msa-root .msa-delete-chat-confirm > p { margin: 0; color: #99919f; font-size: calc(9px * var(--msa-ui-font-scale, 1)); line-height: 1.65; }
+#msa-root .msa-delete-chat-confirm > ul { display: grid; width: 100%; gap: 7px; margin: 0; padding: 0; list-style: none; }
+#msa-root .msa-delete-chat-confirm > ul li { display: flex; min-height: 39px; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid rgba(205,195,255,.11); border-radius: 12px; color: #c9c1d1; background: rgba(205,195,255,.045); font-size: calc(9px * var(--msa-ui-font-scale, 1)); text-align: left; }
+#msa-root .msa-delete-chat-confirm > ul i { width: 18px; color: #ff91aa; text-align: center; }
+#msa-root .msa-delete-chat-confirm > small { display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border-radius: 11px; color: #e9b7c3; background: rgba(154,45,70,.1); font-size: calc(8px * var(--msa-ui-font-scale, 1)); line-height: 1.5; text-align: left; }
+#msa-root .msa-delete-chat-confirm > small i { margin-top: 2px; color: #ff91aa; }
+#msa-root .msa-delete-chat-buttons { display: grid; width: 100%; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 3px; }
+#msa-root .msa-delete-chat-buttons > button { min-height: 46px; border: 1px solid rgba(205,195,255,.14); border-radius: 14px; color: #d2cad9; background: rgba(205,195,255,.07); cursor: pointer; }
+#msa-root .msa-delete-chat-buttons > button.is-danger { border-color: rgba(255,113,143,.36); color: #ffd3dd; background: rgba(154,45,70,.22); }
+#msa-root .msa-delete-chat-buttons > button:disabled { opacity: .55; cursor: wait; }
 #msa-root .msa-thread-state { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 9px; padding: 22px; border: 1px dashed rgba(205,195,255,.16); border-radius: 19px; color: #88818f; text-align: center; }
 #msa-root .msa-thread-state > i { color: #7de8d7; font-size: calc(22px * var(--msa-ui-font-scale, 1)); }
 #msa-root .msa-thread-state > .fa-spinner { animation: msa-thread-spin 850ms linear infinite; }

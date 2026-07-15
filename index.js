@@ -708,6 +708,93 @@ async function createNewCharacterChat() {
     notify('已建立新的獨立聊天室。', 'success');
 }
 
+function normalizedChatFileName(fileName) {
+    const name = String(fileName || '').replace(/\.jsonl$/i, '').trim();
+    if (!name || name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+        throw new Error('聊天室名稱無效，已取消刪除。');
+    }
+    return name;
+}
+
+function openDeleteChatSheet(fileName) {
+    let name;
+    try {
+        name = normalizedChatFileName(fileName);
+    } catch (error) {
+        notify(error.message, 'error');
+        return;
+    }
+    const isCurrent = name === currentChatName();
+    showSheet('刪除聊天室', `
+        <div class="msa-delete-chat-confirm">
+            <span class="msa-delete-chat-icon">${icon('trash-can')}</span>
+            <strong>確定刪除「${escapeHtml(name)}」？</strong>
+            <p>此操作無法復原，將永久刪除這個聊天室的所有訊息與下列專屬資料：</p>
+            <ul>
+                <li>${icon('link')} 關係狀態</li>
+                <li>${icon('heart')} 重要記憶</li>
+                <li>${icon('chart-simple')} Token 使用紀錄</li>
+            </ul>
+            ${isCurrent ? `<small>${icon('triangle-exclamation')} 這是目前聊天室；刪除後會自動切換至其他聊天室，若沒有其他紀錄則建立新聊天室。</small>` : ''}
+            <div class="msa-delete-chat-buttons">
+                <button type="button" data-action="close-sheet">取消</button>
+                <button class="is-danger" type="button" data-confirm-delete-chat-file="${escapeHtml(name)}">永久刪除</button>
+            </div>
+        </div>`);
+}
+
+async function deleteCharacterChatThread(fileName) {
+    const name = normalizedChatFileName(fileName);
+    const current = getCurrentCharacter();
+    const ctx = context();
+    if (!current || ctx?.groupId) throw new Error('目前無法刪除這個聊天室。');
+
+    const avatar = current.character?.avatar || current.character?.data?.avatar;
+    if (!avatar || /[\\/\0]/.test(String(avatar)) || String(avatar) === '.' || String(avatar) === '..') {
+        throw new Error('角色圖片名稱無效，已取消刪除。');
+    }
+
+    const wasCurrent = name === currentChatName();
+    const response = await fetch('/api/chats/delete', {
+        method: 'POST',
+        headers: await getAppRequestHeaders(),
+        body: JSON.stringify({
+            chatfile: `${name}.jsonl`,
+            avatar_url: String(avatar),
+        }),
+        cache: 'no-cache',
+    });
+    if (!response.ok) throw new Error(`聊天室刪除失敗（${response.status || '未知錯誤'}）。`);
+
+    const core = await getCoreModule();
+    if (wasCurrent) {
+        if (typeof core.replaceCurrentChat === 'function') {
+            await core.replaceCurrentChat();
+        } else {
+            const remaining = await fetchCharacterChatThreads(current.id);
+            const nextName = remaining[0] ? chatThreadFileName(remaining[0]) : '';
+            const open = ctx?.openCharacterChat || core.openCharacterChat;
+            if (nextName && typeof open === 'function') {
+                await open.call(ctx, nextName);
+            } else if (typeof core.doNewChat === 'function') {
+                await core.doNewChat({ deleteCurrentChat: false });
+            } else {
+                throw new Error('聊天室已刪除，但無法自動建立新的聊天室。請重新整理 SillyTavern。');
+            }
+        }
+    }
+
+    const deletedEvent = ctx?.event_types?.CHAT_DELETED;
+    if (deletedEvent) await ctx?.eventSource?.emit?.(deletedEvent, name);
+    closeSheet();
+    chatThreads = [];
+    chatThreadsError = '';
+    await syncRoleplayContextPrompt();
+    await loadCharacterChatThreads(current.id, { showLoading: false });
+    render('threads');
+    notify(`已刪除「${name}」及其關係狀態、重要記憶與 Token 紀錄。`, 'success');
+}
+
 async function applyGreeting(index) {
     const current = getCurrentCharacter();
     const ctx = context();
@@ -972,7 +1059,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.4.5</p>
+            <p class="msa-version">Midnight Signal APP · v2.5.0</p>
         </section>`;
 }
 
@@ -1039,7 +1126,10 @@ function chatThreadsMarkup() {
                                 </span>
                                 ${icon('chevron-right')}
                             </button>
-                            <button class="msa-thread-rename" type="button" data-rename-chat-file="${escapeHtml(fileName)}" aria-label="重新命名 ${escapeHtml(fileName)}" title="重新命名聊天室">${icon('pen')}</button>
+                            <span class="msa-thread-actions">
+                                <button class="msa-thread-rename" type="button" data-rename-chat-file="${escapeHtml(fileName)}" aria-label="重新命名 ${escapeHtml(fileName)}" title="重新命名聊天室">${icon('pen')}</button>
+                                <button class="msa-thread-delete" type="button" data-delete-chat-file="${escapeHtml(fileName)}" aria-label="刪除 ${escapeHtml(fileName)}" title="刪除聊天室">${icon('trash')}</button>
+                            </span>
                         </article>`;
                 }).join('')
                 : `<div class="msa-thread-state">${icon('comment-slash')}<strong>還沒有聊天室</strong><span>建立第一個聊天室，關係狀態與重要記憶會獨立保存。</span><button type="button" data-action="new-chat">建立聊天室</button></div>`;
@@ -2089,6 +2179,22 @@ async function handleClick(event) {
     }
     if (button.dataset.deleteMemory !== undefined) {
         deleteMemory(button.dataset.deleteMemory);
+        return;
+    }
+    if (button.dataset.deleteChatFile !== undefined) {
+        openDeleteChatSheet(button.dataset.deleteChatFile);
+        return;
+    }
+    if (button.dataset.confirmDeleteChatFile !== undefined) {
+        button.disabled = true;
+        try {
+            await deleteCharacterChatThread(button.dataset.confirmDeleteChatFile);
+        } catch (error) {
+            notify(error.message || '聊天室刪除失敗。', 'error');
+            console.error('[Midnight Signal] Failed to delete chat.', error);
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
         return;
     }
     if (button.dataset.openChatFile !== undefined) {

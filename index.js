@@ -1,0 +1,1699 @@
+const MODULE_ID = 'midnight_signal_app';
+const ROOT_ID = 'msa-root';
+const TOKEN_SETTINGS_KEY = 'token_usage_panel';
+const TOKEN_CHAT_KEY = 'token_usage_panel_data';
+const TOKEN_FETCH_GUARD = '__midnightSignalTokenFetchPatched';
+const CHAT_MODEL_SELECTORS = Object.freeze({
+    openai: 'model_openai_select', claude: 'model_claude_select', openrouter: 'model_openrouter_select',
+    ai21: 'model_ai21_select', makersuite: 'model_google_select', vertexai: 'model_vertexai_select',
+    mistralai: 'model_mistralai_select', custom: 'model_custom_select', cohere: 'model_cohere_select',
+    perplexity: 'model_perplexity_select', groq: 'model_groq_select', siliconflow: 'model_siliconflow_select',
+    minimax: 'model_minimax_select', electronhub: 'model_electronhub_select', chutes: 'model_chutes_select',
+    nanogpt: 'model_nanogpt_select', deepseek: 'model_deepseek_select', aimlapi: 'model_aimlapi_select',
+    xai: 'model_xai_select', pollinations: 'model_pollinations_select', cometapi: 'model_cometapi_select',
+    moonshot: 'model_moonshot_select', fireworks: 'model_fireworks_select', azure_openai: 'azure_openai_model',
+    zai: 'model_zai_select', workers_ai: 'model_workers_ai_select',
+});
+const DEFAULT_SETTINGS = Object.freeze({
+    autoOpen: false,
+    favorites: [],
+    relationshipNotes: {},
+    memories: {},
+    compactMode: false,
+    chatFontSize: 12,
+    chatBackground: '',
+});
+
+let coreModulePromise;
+let tokenizerModulePromise;
+let personaModulePromise;
+let activeView = 'home';
+let selectedCharacterId = null;
+let selectedProfileCharacterId = null;
+let selectedPersonaId = null;
+let fullViewportHeight = 0;
+let viewportFrame = 0;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function context() {
+    return globalThis.SillyTavern?.getContext?.();
+}
+
+function settings() {
+    const ctx = context();
+    if (!ctx) return structuredClone(DEFAULT_SETTINGS);
+
+    ctx.extensionSettings[MODULE_ID] ??= structuredClone(DEFAULT_SETTINGS);
+    const value = ctx.extensionSettings[MODULE_ID];
+    for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+        if (!Object.hasOwn(value, key)) value[key] = structuredClone(fallback);
+    }
+    return value;
+}
+
+function saveSettings() {
+    context()?.saveSettingsDebounced?.();
+}
+
+function getChatFontSize() {
+    const value = Number(settings().chatFontSize);
+    return Math.min(22, Math.max(10, Number.isFinite(value) ? value : 12));
+}
+
+function applyVisualSettings(root = document.getElementById(ROOT_ID)) {
+    if (!root) return;
+    root.classList.toggle('msa-compact', settings().compactMode);
+    root.style.setProperty('--msa-chat-font-size', `${getChatFontSize()}px`);
+    const background = String(settings().chatBackground || '');
+    const safeBackground = background.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+    root.style.setProperty('--msa-chat-background-image', background ? `url("${safeBackground}")` : 'none');
+    root.classList.toggle('msa-has-chat-background', Boolean(background));
+}
+
+function notify(message, type = 'info') {
+    const toast = globalThis.toastr;
+    if (toast?.[type]) toast[type](message, 'Midnight Signal');
+    else console[type === 'error' ? 'error' : 'log'](`[Midnight Signal] ${message}`);
+}
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function excerpt(value = '', length = 64) {
+    const plain = String(value)
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\{\{[^}]+\}\}/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return plain.length > length ? `${plain.slice(0, length)}…` : plain;
+}
+
+function fullMessageText(value = '') {
+    return String(value)
+        .replace(/<br\s*\/?\s*>/gi, '\n')
+        .replace(/<\/p\s*>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\r\n?/g, '\n')
+        .trim();
+}
+
+function emptyTokenUsage() {
+    return {
+        input: 0,
+        output: 0,
+        total: 0,
+        requests: 0,
+        userMessages: 0,
+        lastInput: 0,
+        lastOutput: 0,
+        lastTotal: 0,
+        chatTextTokens: 0,
+        tokenizerStatus: '尚未計算',
+        status: '等待生成',
+    };
+}
+
+function ensureTokenUsage(value) {
+    const defaults = emptyTokenUsage();
+    for (const [key, fallback] of Object.entries(defaults)) {
+        if (!Object.hasOwn(value, key)) value[key] = fallback;
+    }
+    return value;
+}
+
+function getGlobalTokenUsage() {
+    const ctx = context();
+    if (!ctx?.extensionSettings) return emptyTokenUsage();
+    ctx.extensionSettings[TOKEN_SETTINGS_KEY] ??= emptyTokenUsage();
+    return ensureTokenUsage(ctx.extensionSettings[TOKEN_SETTINGS_KEY]);
+}
+
+function getChatTokenUsage() {
+    const ctx = context();
+    if (!ctx?.chatMetadata) return emptyTokenUsage();
+    ctx.chatMetadata[TOKEN_CHAT_KEY] ??= emptyTokenUsage();
+    return ensureTokenUsage(ctx.chatMetadata[TOKEN_CHAT_KEY]);
+}
+
+function tokenNumberFrom(object, keys) {
+    for (const key of keys) {
+        const value = Number(object?.[key]);
+        if (Number.isFinite(value) && value >= 0) return value;
+    }
+    return null;
+}
+
+function normalizeTokenUsage(object) {
+    if (!object || typeof object !== 'object') return null;
+    const input = tokenNumberFrom(object, ['prompt_tokens', 'input_tokens', 'promptTokenCount', 'prompt_eval_count']);
+    const output = tokenNumberFrom(object, ['completion_tokens', 'output_tokens', 'candidatesTokenCount', 'eval_count']);
+    let total = tokenNumberFrom(object, ['total_tokens', 'totalTokenCount']);
+    if (input === null || output === null) return null;
+    if (total === null) total = input + output;
+    return { input, output, total };
+}
+
+function findTokenUsage(value, seen = new Set()) {
+    if (!value || typeof value !== 'object' || seen.has(value)) return null;
+    seen.add(value);
+    const direct = normalizeTokenUsage(value.usage ?? value.usageMetadata ?? value.timings ?? value);
+    if (direct) return direct;
+    for (const child of Object.values(value)) {
+        const found = findTokenUsage(child, seen);
+        if (found) return found;
+    }
+    return null;
+}
+
+function extractTokenUsage(text) {
+    if (!text) return null;
+    try {
+        const found = findTokenUsage(JSON.parse(text));
+        if (found) return found;
+    } catch { /* Streaming or non-JSON response. */ }
+
+    let latest = null;
+    for (const rawLine of text.split(/\r?\n/)) {
+        let line = rawLine.trim();
+        if (line.startsWith('data:')) line = line.slice(5).trim();
+        if (!line || line === '[DONE]') continue;
+        try {
+            const found = findTokenUsage(JSON.parse(line));
+            if (found) latest = found;
+        } catch { /* Ordinary streamed text. */ }
+    }
+    return latest;
+}
+
+function isTokenGenerationRequest(input, init) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    const method = String(init?.method || input?.method || 'GET').toUpperCase();
+    return method === 'POST' && /(?:\/generate(?:\?|$)|chat-completions\/generate|text-completions\/generate)/i.test(url);
+}
+
+function formatToken(value) {
+    return Number(value || 0).toLocaleString('zh-TW');
+}
+
+function refreshTokenUi() {
+    const chat = getChatTokenUsage();
+    const global = getGlobalTokenUsage();
+    const values = {
+        'msa-token-home-chat': chat.total,
+        'msa-token-home-last': chat.lastTotal,
+        'msa-token-last-input': chat.lastInput,
+        'msa-token-last-output': chat.lastOutput,
+        'msa-token-last-total': chat.lastTotal,
+        'msa-token-chat-total': chat.total,
+        'msa-token-global-total': global.total,
+        'msa-token-requests': chat.requests,
+        'msa-token-user-messages': chat.userMessages,
+        'msa-token-chat-estimate': chat.chatTextTokens,
+    };
+    for (const [id, value] of Object.entries(values)) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = formatToken(value);
+    }
+    const status = document.getElementById('msa-token-status');
+    if (status) status.textContent = chat.status;
+    const tokenizerStatus = document.getElementById('msa-tokenizer-status');
+    if (tokenizerStatus) tokenizerStatus.textContent = chat.tokenizerStatus;
+}
+
+async function saveTokenState() {
+    const ctx = context();
+    ctx?.saveSettingsDebounced?.();
+    await ctx?.saveMetadata?.();
+}
+
+async function recordTokenUsage(usage) {
+    const global = getGlobalTokenUsage();
+    const chat = getChatTokenUsage();
+    for (const target of [global, chat]) {
+        target.input += usage.input;
+        target.output += usage.output;
+        target.total += usage.total;
+        target.requests += 1;
+        target.lastInput = usage.input;
+        target.lastOutput = usage.output;
+        target.lastTotal = usage.total;
+        target.status = 'API 精確數據';
+    }
+    await saveTokenState();
+    refreshTokenUi();
+}
+
+async function recordTokenUserMessage() {
+    getGlobalTokenUsage().userMessages += 1;
+    getChatTokenUsage().userMessages += 1;
+    await saveTokenState();
+    refreshTokenUi();
+}
+
+function markTokenUnavailable() {
+    getGlobalTokenUsage().status = 'API 未回傳 usage';
+    getChatTokenUsage().status = 'API 未回傳 usage';
+    context()?.saveSettingsDebounced?.();
+    refreshTokenUi();
+}
+
+function installTokenTracker() {
+    if (globalThis[TOKEN_FETCH_GUARD]) return;
+
+    const existingTokenPanel = document.getElementById('token-usage-panel');
+    const existingTokenFetch = String(globalThis.fetch?.name || '').includes('tokenUsageFetch');
+    if (existingTokenPanel || existingTokenFetch) {
+        console.info('[Midnight Signal] Reusing API Token 用量面板 data.');
+        return;
+    }
+
+    const originalFetch = globalThis.fetch?.bind(globalThis);
+    if (typeof originalFetch !== 'function') return;
+    globalThis[TOKEN_FETCH_GUARD] = true;
+
+    globalThis.fetch = async function midnightSignalTokenFetch(input, init) {
+        const response = await originalFetch(input, init);
+        if (!isTokenGenerationRequest(input, init)) return response;
+
+        response.clone().text()
+            .then(extractTokenUsage)
+            .then(usage => usage ? recordTokenUsage(usage) : markTokenUnavailable())
+            .catch(markTokenUnavailable);
+        return response;
+    };
+
+    const ctx = context();
+    const messageSent = ctx?.event_types?.MESSAGE_SENT;
+    if (messageSent) ctx.eventSource?.on?.(messageSent, recordTokenUserMessage);
+}
+
+function getCharacters() {
+    return (context()?.characters || [])
+        .map((character, id) => ({ character, id }))
+        .filter(({ character }) => character && (character.name || character.data?.name));
+}
+
+function getCurrentCharacter() {
+    const ctx = context();
+    const hasCharacterId = ctx?.characterId !== undefined && ctx?.characterId !== null && Number.isInteger(Number(ctx.characterId));
+    const id = hasCharacterId ? Number(ctx.characterId) : selectedCharacterId;
+    return ctx?.characters?.[id] ? { character: ctx.characters[id], id } : null;
+}
+
+function characterName(character) {
+    return character?.name || character?.data?.name || '尚未選擇角色';
+}
+
+function characterKey(character) {
+    return character?.avatar || character?.data?.avatar || characterName(character);
+}
+
+function avatarUrl(character) {
+    const avatar = character?.avatar || character?.data?.avatar;
+    if (!avatar || avatar === 'none') return '';
+    const ctx = context();
+    if (typeof ctx?.getThumbnailUrl === 'function') return ctx.getThumbnailUrl('avatar', avatar);
+    return `/thumbnail?type=avatar&file=${encodeURIComponent(avatar)}`;
+}
+
+function getGreetings(character) {
+    if (!character) return [];
+    const first = character.first_mes ?? character.data?.first_mes ?? '';
+    const alternates = character.data?.alternate_greetings ?? character.alternate_greetings ?? [];
+    return [first, ...(Array.isArray(alternates) ? alternates : [])].filter(value => String(value).trim());
+}
+
+function getLatestMessage() {
+    const chat = context()?.chat || [];
+    return [...chat].reverse().find(message => !message?.is_system)?.mes || '選擇角色，開始一段新的對話。';
+}
+
+function getChatModelControl() {
+    const ctx = context();
+    const source = ctx?.chatCompletionSettings?.chat_completion_source || document.getElementById('chat_completion_source')?.value || '';
+    let control = document.getElementById(CHAT_MODEL_SELECTORS[source]);
+    if (source === 'custom' && (!control || !control.options?.length)) control = document.getElementById('custom_model_id');
+    const selected = control?.tagName === 'SELECT' ? control.selectedOptions?.[0] : null;
+    const label = selected?.textContent?.trim() || control?.value || '尚未選擇模型';
+    return { source, control, label };
+}
+
+function getChatPresetControl() {
+    const control = document.getElementById('settings_preset_openai');
+    const label = control?.selectedOptions?.[0]?.textContent?.trim() || control?.value || '尚未選擇預設';
+    return { control, label };
+}
+
+function getCoreModule() {
+    coreModulePromise ??= import('/script.js').catch(error => {
+        console.warn('[Midnight Signal] Unable to import core module.', error);
+        return {};
+    });
+    return coreModulePromise;
+}
+
+function getTokenizerModule() {
+    tokenizerModulePromise ??= import('/scripts/tokenizers.js').catch(error => {
+        console.warn('[Midnight Signal] Unable to import tokenizer module.', error);
+        return {};
+    });
+    return tokenizerModulePromise;
+}
+
+function getPersonaModule() {
+    personaModulePromise ??= import('/scripts/personas.js').catch(error => {
+        console.warn('[Midnight Signal] Unable to import persona module.', error);
+        return {};
+    });
+    return personaModulePromise;
+}
+
+async function getPersonaRuntime() {
+    const ctx = context();
+    const personaModule = await getPersonaModule();
+    const powerUser = ctx?.powerUserSettings || {};
+    powerUser.personas ??= {};
+    powerUser.persona_descriptions ??= {};
+
+    const selectedFromDom = document.querySelector('#user_avatar_block .avatar-container.selected')?.getAttribute('data-avatar-id');
+    const selectedByName = Object.keys(powerUser.personas).find(id => powerUser.personas[id] === ctx?.name1);
+    const currentId = personaModule.user_avatar || selectedPersonaId || selectedFromDom || selectedByName || Object.keys(powerUser.personas)[0] || '';
+    return { ctx, personaModule, powerUser, currentId };
+}
+
+function personaAvatarUrl(id) {
+    if (!id) return '';
+    const ctx = context();
+    if (typeof ctx?.getThumbnailUrl === 'function') return ctx.getThumbnailUrl('persona', id);
+    return `/thumbnail?type=persona&file=${encodeURIComponent(id)}`;
+}
+
+async function calculateCurrentChatTokens() {
+    const ctx = context();
+    const usage = getChatTokenUsage();
+    const chatText = (ctx?.chat || [])
+        .filter(message => !message?.is_system)
+        .map(message => `${message?.name || ''}: ${message?.mes || ''}`)
+        .join('\n');
+
+    if (!chatText.trim()) {
+        usage.chatTextTokens = 0;
+        usage.tokenizerStatus = '目前聊天沒有內容';
+        refreshTokenUi();
+        return 0;
+    }
+
+    try {
+        let counter = ctx?.getTokenCountAsync;
+        if (typeof counter !== 'function') {
+            const tokenizer = await getTokenizerModule();
+            counter = tokenizer.getTokenCountAsync;
+        }
+        if (typeof counter !== 'function') throw new Error('Tokenizer API unavailable');
+        usage.chatTextTokens = await counter.call(ctx, chatText, 0);
+        usage.tokenizerStatus = 'SillyTavern tokenizer 計算';
+        await ctx?.saveMetadata?.();
+        refreshTokenUi();
+        return usage.chatTextTokens;
+    } catch (error) {
+        usage.tokenizerStatus = '無法啟用 SillyTavern tokenizer';
+        refreshTokenUi();
+        console.warn('[Midnight Signal] Chat token calculation failed.', error);
+        return null;
+    }
+}
+
+async function selectCharacter(id) {
+    const ctx = context();
+    if (!ctx?.characters?.[id]) throw new Error('找不到所選角色。');
+    if (ctx.groupId) throw new Error('目前是群組聊天，請先切換到單人角色聊天。');
+
+    selectedCharacterId = Number(id);
+    if (Number(ctx.characterId) === Number(id)) return;
+
+    let select = ctx.selectCharacterById;
+    if (typeof select !== 'function') {
+        const core = await getCoreModule();
+        select = core.selectCharacterById;
+    }
+    if (typeof select === 'function') {
+        await select.call(ctx, Number(id));
+    } else {
+        const card = document.querySelector(`.character_select[chid="${id}"], .character_select[data-chid="${id}"]`);
+        if (!card) throw new Error('這個 SillyTavern 版本沒有提供角色切換介面。');
+        card.click();
+    }
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+        if (Number(context()?.characterId) === Number(id)) break;
+        await sleep(100);
+    }
+}
+
+async function applyGreeting(index) {
+    const current = getCurrentCharacter();
+    const ctx = context();
+    if (!current) throw new Error('請先選擇一名角色。');
+
+    const greetings = getGreetings(current.character);
+    const greeting = greetings[index];
+    if (!greeting) throw new Error('找不到這個開場白。');
+    if (!ctx.chat?.[0] || ctx.chat[0].is_user) throw new Error('目前聊天沒有可替換的角色開場白。');
+
+    const firstMessage = ctx.chat[0];
+    firstMessage.swipes = [...greetings];
+    firstMessage.swipe_id = Number(index);
+    firstMessage.mes = greeting;
+    firstMessage.name = characterName(current.character);
+
+    let core = {};
+    let save = ctx.saveChat;
+    if (typeof save !== 'function') {
+        core = await getCoreModule();
+        save = core.saveChatConditional;
+    }
+    if (typeof save === 'function') await save.call(ctx);
+
+    let reload = ctx.reloadCurrentChat || core.reloadCurrentChat;
+    if (typeof reload !== 'function') {
+        core = await getCoreModule();
+        reload = core.reloadCurrentChat;
+    }
+    if (typeof reload === 'function') {
+        await reload.call(ctx);
+    } else {
+        const text = document.querySelector('#chat .mes[mesid="0"] .mes_text');
+        if (text) text.textContent = greeting;
+        ctx.eventSource?.emit?.(ctx.event_types?.MESSAGE_SWIPED, 0);
+    }
+}
+
+function icon(name) {
+    return `<i class="fa-solid fa-${name}" aria-hidden="true"></i>`;
+}
+
+function launcherMarkup() {
+    return `
+        <button id="msa-launcher" type="button" aria-label="開啟 Midnight Signal APP" title="Midnight Signal APP">
+            ${icon('mobile-screen-button')}<span>手機</span>
+        </button>`;
+}
+
+function shellMarkup() {
+    return `
+        <div id="${ROOT_ID}" class="msa-hidden" aria-hidden="true">
+            <div class="msa-backdrop" data-action="close"></div>
+            <section class="msa-phone" role="dialog" aria-modal="true" aria-label="Midnight Signal APP">
+                <button class="msa-close" type="button" data-action="close" aria-label="關閉">${icon('xmark')}</button>
+                <div class="msa-app-scroll">
+                    <header class="msa-header">
+                        <button class="msa-profile" type="button" data-action="characters" aria-label="選擇對話角色">
+                            <span class="msa-avatar msa-avatar-current"></span>
+                            <span><strong>MIDNIGHT SIGNAL</strong><small><b></b> ONLINE</small></span>
+                        </button>
+                        <button class="msa-icon-button" type="button" data-action="notifications" aria-label="通知">
+                            ${icon('bell')}<span class="msa-notification-dot"></span>
+                        </button>
+                    </header>
+                    <main id="msa-content"></main>
+                </div>
+                <nav class="msa-bottom-nav" aria-label="APP 導覽">
+                    <button type="button" data-nav="home">${icon('house')}<span>主頁</span></button>
+                    <button type="button" data-nav="favorites">${icon('star')}<span>收藏</span></button>
+                    <button type="button" data-nav="cards">${icon('address-card')}<span>角色</span></button>
+                    <button type="button" data-nav="settings">${icon('gear')}<span>設定</span></button>
+                </nav>
+            </section>
+            <div id="msa-sheet" class="msa-sheet msa-hidden" aria-hidden="true"></div>
+        </div>`;
+}
+
+function homeMarkup() {
+    const current = getCurrentCharacter();
+    const character = current?.character;
+    const name = characterName(character);
+    const greetingCount = getGreetings(character).length;
+    const tokenUsage = getChatTokenUsage();
+    const characters = getCharacters();
+    const characterStrip = characters.length ? characters.map(({ character: card, id }) => `
+        <button type="button" class="msa-home-character-card" data-profile-character-id="${id}">
+            <span class="msa-home-character-art" style="--msa-card-avatar:url('${escapeHtml(avatarUrl(card))}')"></span>
+            <span class="msa-home-character-shade"></span>
+            <span class="msa-home-character-copy"><strong>${escapeHtml(characterName(card))}</strong><small>${escapeHtml(excerpt(card.description || card.data?.description || '查看角色主頁', 35))}</small></span>
+        </button>`).join('') : '<div class="msa-home-character-empty">尚未匯入角色卡</div>';
+    return `
+        <section class="msa-home">
+            <button class="msa-hero" type="button" data-action="characters" aria-label="選擇對話角色">
+                <span class="msa-hero-art" role="img" aria-label="紅色聲波與雨夜城市"></span>
+                <span class="msa-hero-shade"></span>
+                <span class="msa-hero-copy">
+                    <small>${icon('user-group')} 選擇對話角色</small>
+                    <strong>${escapeHtml(name)}</strong>
+                    <em>今晚，要和誰開始？</em>
+                </span>
+            </button>
+
+            <section class="msa-home-character-section">
+                <header><span><small>CHARACTERS</small><strong>角色卡主頁</strong></span><button type="button" data-nav="cards">管理角色</button></header>
+                <div class="msa-home-character-strip">${characterStrip}</div>
+            </section>
+
+            <button class="msa-opening-button" type="button" data-action="greetings">
+                ${icon('heart')}<span><small>目前角色共有 ${greetingCount} 個開場</small><strong>開場白選擇</strong></span>${icon('chevron-right')}
+            </button>
+
+            <button class="msa-latest" type="button" data-action="messages">
+                <span class="msa-latest-icon">${icon('message')}</span>
+                <span><small>最近訊息</small><strong>${escapeHtml(excerpt(getLatestMessage(), 38))}</strong></span>
+                <time>${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</time>
+            </button>
+
+            <button class="msa-token-button" type="button" data-action="tokens">
+                <span class="msa-token-icon">${icon('gauge-high')}</span>
+                <span class="msa-token-main"><small>API 實際用量</small><strong>TOKEN USAGE</strong></span>
+                <span class="msa-token-last"><small>聊天 / 本次</small><b><span id="msa-token-home-chat">${formatToken(tokenUsage.total)}</span> / <span id="msa-token-home-last">${formatToken(tokenUsage.lastTotal)}</span></b>${icon('chevron-right')}</span>
+            </button>
+
+            <div class="msa-grid">
+                <button type="button" data-action="messages">${icon('message')}<span>訊息</span></button>
+                <button type="button" data-action="relationship">${icon('user-group')}<span>關係</span></button>
+                <button type="button" data-action="memories">${icon('image')}<span>回憶</span></button>
+                <button type="button" data-action="moments">${icon('wave-square')}<span>動態</span></button>
+            </div>
+        </section>`;
+}
+
+function emptyMarkup(title, message) {
+    return `<div class="msa-empty">${icon('moon')}<strong>${escapeHtml(title)}</strong><p>${escapeHtml(message)}</p></div>`;
+}
+
+function favoritesMarkup() {
+    const favoriteKeys = settings().favorites;
+    const matches = getCharacters().filter(({ character }) => favoriteKeys.includes(characterKey(character)));
+    if (!matches.length) return emptyMarkup('還沒有收藏角色', '在角色選擇頁點擊星號，即可將角色加入收藏。');
+    return `
+        <section class="msa-page">
+            <div class="msa-page-title"><span><small>FAVORITES</small><strong>收藏角色</strong></span></div>
+            <div class="msa-character-list">${matches.map(characterCardMarkup).join('')}</div>
+        </section>`;
+}
+
+function characterManagementMarkup() {
+    const characters = getCharacters();
+    return `
+        <section class="msa-page msa-card-manager-page">
+            <div class="msa-page-title"><span><small>CHARACTER CARDS</small><strong>角色卡管理</strong></span></div>
+            <div class="msa-card-actions">
+                <button type="button" data-action="import-character">${icon('file-import')}<span><strong>匯入角色卡</strong><small>PNG、JSON、YAML、CHARX、BYAF</small></span></button>
+                <button type="button" data-action="new-character">${icon('user-plus')}<span><strong>新增角色卡</strong><small>直接建立基本角色資料</small></span></button>
+            </div>
+            <p class="msa-card-manager-note">刪除角色卡時會保留原有聊天紀錄；角色卡本身刪除後無法復原。</p>
+            <div class="msa-managed-card-list">${characters.length ? characters.map(({ character, id }) => `
+                <article class="msa-managed-card ${Number(context()?.characterId) === id ? 'is-current' : ''}">
+                    <button type="button" class="msa-managed-card-main" data-character-id="${id}">
+                        <span class="msa-avatar" style="--msa-avatar-url:url('${escapeHtml(avatarUrl(character))}')"></span>
+                        <span><strong>${escapeHtml(characterName(character))}</strong><small>${escapeHtml(excerpt(character.description || character.data?.description || '尚未填寫角色描述', 58))}</small></span>
+                    </button>
+                    <button type="button" class="msa-managed-card-delete" data-delete-character="${id}" aria-label="刪除 ${escapeHtml(characterName(character))}">${icon('trash-can')}</button>
+                </article>`).join('') : '<div class="msa-card-manager-empty">目前沒有角色卡，可從上方匯入或新增。</div>'}</div>
+        </section>`;
+}
+
+function characterProfileMarkup() {
+    const characters = context()?.characters || [];
+    const hasSelectedProfile = selectedProfileCharacterId !== null && selectedProfileCharacterId !== undefined && Number.isInteger(Number(selectedProfileCharacterId));
+    const id = hasSelectedProfile ? Number(selectedProfileCharacterId) : Number(context()?.characterId);
+    const character = characters[id];
+    if (!character) return emptyMarkup('找不到角色卡', '請回到主頁重新選擇角色。');
+    const description = character.description || character.data?.description || '尚未填寫角色描述。';
+    const personality = character.personality || character.data?.personality || '尚未填寫性格。';
+    const scenario = character.scenario || character.data?.scenario || '尚未填寫場景。';
+    const firstMessage = character.first_mes || character.data?.first_mes || '尚未設定開場白。';
+    return `
+        <section class="msa-page msa-character-profile">
+            <button type="button" class="msa-profile-cover" data-start-character-id="${id}">
+                <span class="msa-profile-cover-art" style="--msa-profile-avatar:url('${escapeHtml(avatarUrl(character))}')"></span>
+                <span class="msa-profile-cover-shade"></span>
+                <span class="msa-profile-cover-copy"><small>CHARACTER HOME</small><strong>${escapeHtml(characterName(character))}</strong><em>點擊開始對話</em></span>
+            </button>
+            <div class="msa-profile-actions">
+                <button type="button" data-start-character-id="${id}">${icon('comments')} 開始聊天</button>
+                <button type="button" data-profile-greetings-id="${id}">${icon('heart')} 開場白</button>
+            </div>
+            <article class="msa-profile-section"><small>DESCRIPTION</small><strong>角色設定</strong><p>${escapeHtml(fullMessageText(description))}</p></article>
+            <article class="msa-profile-section"><small>PERSONALITY</small><strong>性格</strong><p>${escapeHtml(fullMessageText(personality))}</p></article>
+            <article class="msa-profile-section"><small>SCENARIO</small><strong>場景</strong><p>${escapeHtml(fullMessageText(scenario))}</p></article>
+            <article class="msa-profile-section is-first-message"><small>FIRST MESSAGE</small><strong>預設開場白</strong><p>${escapeHtml(fullMessageText(firstMessage))}</p></article>
+        </section>`;
+}
+
+function settingsMarkup() {
+    const value = settings();
+    const chatFontSize = getChatFontSize();
+    return `
+        <section class="msa-page">
+            <div class="msa-page-title"><span><small>SETTINGS</small><strong>介面設定</strong></span></div>
+            <label class="msa-setting-row">
+                <span><strong>啟動時自動開啟</strong><small>載入 SillyTavern 後顯示 APP</small></span>
+                <input type="checkbox" data-setting="autoOpen" ${value.autoOpen ? 'checked' : ''}>
+            </label>
+            <label class="msa-setting-row">
+                <span><strong>緊湊模式</strong><small>縮小按鈕與區塊間距</small></span>
+                <input type="checkbox" data-setting="compactMode" ${value.compactMode ? 'checked' : ''}>
+            </label>
+            <label class="msa-setting-row msa-font-setting">
+                <span><strong>聊天室訊息字體</strong><small>調整訊息泡泡內的文字大小</small></span>
+                <output id="msa-chat-font-value" for="msa-chat-font-size">${chatFontSize} px</output>
+                <input id="msa-chat-font-size" type="range" min="10" max="22" step="1" value="${chatFontSize}" data-setting="chatFontSize" aria-label="聊天室訊息字體大小">
+                <span class="msa-font-preview">這是一段聊天室訊息大小預覽。</span>
+            </label>
+            <button class="msa-background-setting-button" type="button" data-action="chat-background">
+                <span class="msa-background-setting-icon">${icon('image')}</span>
+                <span><strong>聊天室背景</strong><small>${value.chatBackground ? '已套用自訂背景，可隨時替換' : '上傳圖片並套用到訊息區域'}</small></span>
+                ${icon('chevron-right')}
+            </button>
+            <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
+            <p class="msa-version">Midnight Signal APP · v1.4.0</p>
+        </section>`;
+}
+
+function characterCardMarkup({ character, id }) {
+    const key = characterKey(character);
+    const favorite = settings().favorites.includes(key);
+    return `
+        <div class="msa-character-card ${Number(context()?.characterId) === id ? 'is-current' : ''}">
+            <button type="button" class="msa-character-main" data-character-id="${id}">
+                <span class="msa-avatar" style="--msa-avatar-url:url('${escapeHtml(avatarUrl(character))}')"></span>
+                <span><strong>${escapeHtml(characterName(character))}</strong><small>${getGreetings(character).length} 個開場白</small></span>
+            </button>
+            <button type="button" class="msa-favorite-toggle ${favorite ? 'is-favorite' : ''}" data-favorite-id="${id}" aria-label="切換收藏">${icon('star')}</button>
+        </div>`;
+}
+
+function messagesMarkup() {
+    const chat = context()?.chat || [];
+    const visibleMessages = chat.slice(-100);
+    const hiddenCount = Math.max(0, chat.length - visibleMessages.length);
+    const model = getChatModelControl();
+    const preset = getChatPresetControl();
+    return `
+        <section class="msa-page msa-chat-page">
+            <div class="msa-page-title msa-chat-title"><span><small>MESSAGES</small><strong>與 ${escapeHtml(characterName(getCurrentCharacter()?.character))} 對話</strong></span><button type="button" data-action="chat-background" aria-label="更換聊天室背景" title="更換聊天室背景">${icon('image')}</button></div>
+            ${hiddenCount ? `<p class="msa-chat-history-note">為保持流暢，目前顯示最近 100 則訊息；更早的 ${hiddenCount} 則仍保存在 SillyTavern。</p>` : ''}
+            <div id="msa-message-list" class="msa-message-list" aria-live="polite">${visibleMessages.length ? visibleMessages.map((message, index) => `
+                <article class="msa-message ${message.is_user ? 'is-user' : 'is-character'}">
+                    <small>${escapeHtml(message.name || (message.is_user ? '你' : characterName(getCurrentCharacter()?.character)))}</small>
+                    <p>${escapeHtml(fullMessageText(message.mes))}</p>
+                </article>`).join('') : '<div class="msa-chat-empty">還沒有訊息，從下方輸入第一句話吧。</div>'}</div>
+            <div class="msa-chat-switchers" aria-label="聊天生成設定">
+                <button type="button" data-action="switch-model" title="切換 AI 模型">${icon('microchip')}<span><small>AI MODEL</small><strong>${escapeHtml(model.label)}</strong></span>${icon('chevron-up')}</button>
+                <button type="button" data-action="switch-preset" title="切換聊天補全預設設定檔">${icon('sliders')}<span><small>CHAT PRESET</small><strong>${escapeHtml(preset.label)}</strong></span>${icon('chevron-up')}</button>
+            </div>
+            <div class="msa-chat-composer">
+                <textarea id="msa-chat-input" rows="2" maxlength="12000" placeholder="輸入訊息……（Enter 傳送，Shift+Enter 換行）" aria-label="聊天訊息"></textarea>
+                <button class="msa-persona-button" type="button" data-action="personas" aria-label="更換或編輯人設" title="更換或編輯人設">${icon('user-pen')}<span>人設</span></button>
+                <button type="button" data-action="send-message" aria-label="傳送訊息">${icon('paper-plane')}</button>
+            </div>
+            <small class="msa-chat-bridge-status">訊息將透過 SillyTavern 目前的角色、世界書與模型設定傳送</small>
+        </section>`;
+}
+
+function relationshipMarkup() {
+    const character = getCurrentCharacter()?.character;
+    if (!character) return emptyMarkup('請先選擇角色', '關係筆記會分別儲存在每一名角色之下。');
+    const key = characterKey(character);
+    const value = settings().relationshipNotes[key] || '';
+    return `
+        <section class="msa-page">
+            <div class="msa-page-title"><span><small>RELATIONSHIP</small><strong>與 ${escapeHtml(characterName(character))} 的關係</strong></span></div>
+            <div class="msa-stat-card"><span>對話回合</span><strong>${Math.max(0, (context()?.chat?.length || 1) - 1)}</strong></div>
+            <label class="msa-textarea-label">關係備忘錄
+                <textarea id="msa-relationship-note" rows="9" placeholder="例如：目前互相信任、約定下次去看海……">${escapeHtml(value)}</textarea>
+            </label>
+            <button class="msa-save-button" type="button" data-action="save-relationship">${icon('floppy-disk')} 儲存關係筆記</button>
+        </section>`;
+}
+
+function memoriesMarkup() {
+    const character = getCurrentCharacter()?.character;
+    if (!character) return emptyMarkup('請先選擇角色', '你可以為不同角色保存獨立的回憶。');
+    const key = characterKey(character);
+    const list = settings().memories[key] || [];
+    return `
+        <section class="msa-page">
+            <div class="msa-page-title"><span><small>MEMORIES</small><strong>和 ${escapeHtml(characterName(character))} 的回憶</strong></span></div>
+            <div class="msa-add-row"><input id="msa-memory-input" type="text" maxlength="240" placeholder="記下一件重要的事"><button type="button" data-action="add-memory">${icon('plus')}</button></div>
+            <div class="msa-memory-list">${list.length ? list.map((item, index) => `
+                <article><span>${icon('heart')}<p>${escapeHtml(item)}</p></span><button type="button" data-delete-memory="${index}" aria-label="刪除">${icon('trash')}</button></article>`).join('') : '<p class="msa-list-hint">尚未新增回憶。</p>'}</div>
+        </section>`;
+}
+
+function momentsMarkup() {
+    const chat = (context()?.chat || []).filter(message => !message.is_user && !message.is_system).slice(-6).reverse();
+    if (!chat.length) return emptyMarkup('尚無角色動態', '角色回覆後，近期片段會自動整理在這裡。');
+    return `
+        <section class="msa-page">
+            <div class="msa-page-title"><span><small>MOMENTS</small><strong>角色動態</strong></span></div>
+            <div class="msa-moment-list">${chat.map((message, index) => `
+                <article><span class="msa-moment-head"><b></b><strong>${escapeHtml(message.name || characterName(getCurrentCharacter()?.character))}</strong><time>#${chat.length - index}</time></span><p>${escapeHtml(excerpt(message.mes, 220))}</p></article>`).join('')}</div>
+        </section>`;
+}
+
+function tokensMarkup() {
+    const chat = getChatTokenUsage();
+    const global = getGlobalTokenUsage();
+    return `
+        <section class="msa-page msa-token-page">
+            <div class="msa-page-title"><span><small>TOKEN USAGE</small><strong>Token 使用量</strong></span></div>
+            <div class="msa-token-summary">
+                <small>目前聊天累計</small>
+                <strong id="msa-token-chat-total">${formatToken(chat.total)}</strong>
+                <span>TOKENS</span>
+            </div>
+            <div class="msa-token-rows">
+                <div><span>本次輸入</span><strong id="msa-token-last-input">${formatToken(chat.lastInput)}</strong></div>
+                <div><span>本次回覆</span><strong id="msa-token-last-output">${formatToken(chat.lastOutput)}</strong></div>
+                <div class="is-total"><span>本次合計</span><strong id="msa-token-last-total">${formatToken(chat.lastTotal)}</strong></div>
+                <div><span>API 呼叫次數</span><strong id="msa-token-requests">${formatToken(chat.requests)}</strong></div>
+                <div><span>玩家傳送訊息</span><strong id="msa-token-user-messages">${formatToken(chat.userMessages)}</strong></div>
+                <div><span>全部聊天累計</span><strong id="msa-token-global-total">${formatToken(global.total)}</strong></div>
+                <div class="is-estimate"><span>目前聊天內容 Token</span><strong id="msa-token-chat-estimate">${formatToken(chat.chatTextTokens)}</strong></div>
+            </div>
+            <div id="msa-token-status" class="msa-token-status">${escapeHtml(chat.status)}</div>
+            <div id="msa-tokenizer-status" class="msa-tokenizer-status">${escapeHtml(chat.tokenizerStatus)}</div>
+            <p class="msa-token-help">輸入、回覆與累計數字取自模型 API 回傳的 usage；「目前聊天內容 Token」使用 SillyTavern 當前模型 tokenizer 即時計算。</p>
+            <div class="msa-token-reset-row">
+                <button type="button" data-action="reset-chat-tokens">重設目前聊天</button>
+                <button type="button" data-action="reset-all-tokens">重設全部累計</button>
+            </div>
+        </section>`;
+}
+
+function render(view = activeView) {
+    const previousView = activeView;
+    activeView = view;
+    const root = document.getElementById(ROOT_ID);
+    const content = document.getElementById('msa-content');
+    if (!root || !content) return;
+    applyVisualSettings(root);
+    root.classList.toggle('msa-view-messages', view === 'messages');
+
+    const markup = {
+        home: homeMarkup,
+        profile: characterProfileMarkup,
+        favorites: favoritesMarkup,
+        cards: characterManagementMarkup,
+        settings: settingsMarkup,
+        messages: messagesMarkup,
+        relationship: relationshipMarkup,
+        memories: memoriesMarkup,
+        moments: momentsMarkup,
+        tokens: tokensMarkup,
+    }[view]?.() || homeMarkup();
+
+    content.innerHTML = markup;
+    document.querySelectorAll('[data-nav]').forEach(button => button.classList.toggle('is-active', button.dataset.nav === view));
+    updateCurrentAvatar();
+    if (previousView !== view) {
+        const scroller = root.querySelector('.msa-app-scroll');
+        if (scroller) scroller.scrollTop = 0;
+    }
+    if (view === 'messages') {
+        const schedule = globalThis.requestAnimationFrame || (callback => setTimeout(callback, 0));
+        schedule(() => {
+            const list = document.getElementById('msa-message-list');
+            if (list) list.scrollTop = list.scrollHeight;
+        });
+    }
+}
+
+function syncViewportMetrics() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+
+    const viewport = globalThis.visualViewport;
+    const height = Math.max(1, Math.round(viewport?.height || globalThis.innerHeight || document.documentElement.clientHeight || 1));
+    const offsetTop = Math.max(0, Math.round(viewport?.offsetTop || 0));
+    const activeElement = document.activeElement;
+    const editing = root.contains(activeElement) && activeElement?.matches?.('input, textarea, [contenteditable="true"]');
+
+    if (!editing) fullViewportHeight = Math.max(fullViewportHeight, height);
+    else if (!fullViewportHeight) fullViewportHeight = Math.max(height, globalThis.innerHeight || height);
+
+    root.style.setProperty('--msa-viewport-height', `${height}px`);
+    root.style.setProperty('--msa-viewport-top', `${offsetTop}px`);
+    root.classList.toggle('msa-keyboard-open', editing && fullViewportHeight - height > 120);
+}
+
+function scheduleViewportSync() {
+    const schedule = globalThis.requestAnimationFrame || (callback => setTimeout(callback, 0));
+    const cancel = globalThis.cancelAnimationFrame || clearTimeout;
+    if (viewportFrame) cancel(viewportFrame);
+    viewportFrame = schedule(() => {
+        viewportFrame = 0;
+        syncViewportMetrics();
+    });
+}
+
+function updateCurrentAvatar() {
+    const character = getCurrentCharacter()?.character;
+    const url = avatarUrl(character);
+    document.querySelectorAll('.msa-avatar-current').forEach(node => {
+        node.style.setProperty('--msa-avatar-url', url ? `url("${url}")` : 'none');
+    });
+}
+
+function showApp(view = 'home') {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;
+    syncViewportMetrics();
+    root.classList.remove('msa-hidden');
+    root.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('msa-open');
+    render(view);
+}
+
+function hideApp() {
+    closeSheet();
+    const root = document.getElementById(ROOT_ID);
+    root?.classList.add('msa-hidden');
+    root?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('msa-open');
+}
+
+function showSheet(title, content) {
+    const sheet = document.getElementById('msa-sheet');
+    if (!sheet) return;
+    sheet.innerHTML = `<div class="msa-sheet-backdrop" data-action="close-sheet"></div><section><header><span><small>MIDNIGHT SIGNAL</small><strong>${escapeHtml(title)}</strong></span><button type="button" data-action="close-sheet">${icon('xmark')}</button></header><div class="msa-sheet-content">${content}</div></section>`;
+    sheet.classList.remove('msa-hidden');
+    sheet.setAttribute('aria-hidden', 'false');
+    const sheetContent = sheet.querySelector('.msa-sheet-content');
+    if (sheetContent) sheetContent.scrollTop = 0;
+}
+
+function closeSheet() {
+    const sheet = document.getElementById('msa-sheet');
+    sheet?.classList.add('msa-hidden');
+    sheet?.setAttribute('aria-hidden', 'true');
+}
+
+function openCharacterSheet() {
+    const characters = getCharacters();
+    const content = characters.length
+        ? `<div class="msa-character-list">${characters.map(characterCardMarkup).join('')}</div>`
+        : `<div class="msa-sheet-empty">尚未匯入任何角色卡。</div>`;
+    showSheet('選擇對話角色', content);
+}
+
+function openGreetingSheet() {
+    const current = getCurrentCharacter();
+    if (!current) {
+        openCharacterSheet();
+        return;
+    }
+    const greetings = getGreetings(current.character);
+    const currentSwipe = Number(context()?.chat?.[0]?.swipe_id || 0);
+    const content = greetings.length
+        ? `<div class="msa-greeting-list">${greetings.map((greeting, index) => `
+            <button type="button" data-greeting-index="${index}" class="${currentSwipe === index ? 'is-current' : ''}">
+                <span><small>${index === 0 ? '預設開場白' : `開場白 ${index + 1}`}</small><strong>${escapeHtml(excerpt(greeting, 110))}</strong></span>${icon(currentSwipe === index ? 'check' : 'chevron-right')}
+            </button>`).join('')}</div>`
+        : `<div class="msa-sheet-empty">這張角色卡沒有設定開場白。</div>`;
+    showSheet('開場白選擇', content);
+}
+
+function openNotifications() {
+    showSheet('通知', `<div class="msa-notice-card">${icon('circle-check')}<span><strong>APP 已與 SillyTavern 連線</strong><small>角色、聊天與開場白資料會隨目前對話更新。</small></span></div>`);
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadDataUrlImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Image decode failed'));
+        image.src = dataUrl;
+    });
+}
+
+async function optimizeChatBackground(file) {
+    if (!file?.type?.startsWith('image/')) throw new Error('請選擇圖片檔。');
+    if (file.size > 12 * 1024 * 1024) throw new Error('圖片需小於 12 MB。');
+
+    const original = await readFileAsDataUrl(file);
+    const image = await loadDataUrlImage(original);
+    const maxEdge = 1440;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+    canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+    const draw = canvas.getContext('2d');
+    if (!draw) throw new Error('瀏覽器無法處理這張圖片。');
+    draw.fillStyle = '#050a12';
+    draw.fillRect(0, 0, canvas.width, canvas.height);
+    draw.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    let result = canvas.toDataURL('image/jpeg', 0.82);
+    if (result.length > 3_200_000 && Math.max(canvas.width, canvas.height) > 1050) {
+        const compact = document.createElement('canvas');
+        const compactScale = 1050 / Math.max(canvas.width, canvas.height);
+        compact.width = Math.max(1, Math.round(canvas.width * compactScale));
+        compact.height = Math.max(1, Math.round(canvas.height * compactScale));
+        const compactDraw = compact.getContext('2d');
+        compactDraw.fillStyle = '#050a12';
+        compactDraw.fillRect(0, 0, compact.width, compact.height);
+        compactDraw.drawImage(canvas, 0, 0, compact.width, compact.height);
+        result = compact.toDataURL('image/jpeg', 0.72);
+    }
+    if (!result.startsWith('data:image/') || result.length > 4_500_000) throw new Error('圖片壓縮後仍過大，請改用尺寸較小的圖片。');
+    return result;
+}
+
+function openChatBackgroundSheet() {
+    const hasBackground = Boolean(settings().chatBackground);
+    const content = `
+        <div class="msa-background-editor">
+            <div class="msa-background-preview ${hasBackground ? 'has-image' : ''}" style="--msa-preview-background:${hasBackground ? `url(&quot;${escapeHtml(settings().chatBackground)}&quot;)` : 'none'}">
+                <span>${icon('comments')}<strong>訊息背景預覽</strong><small>${hasBackground ? '目前已套用自訂背景' : '目前使用預設深色背景'}</small></span>
+            </div>
+            <label class="msa-background-upload">${icon('upload')}<span><strong>選擇背景圖片</strong><small>支援 JPG、PNG、WEBP；會壓縮並儲存在擴充設定中</small></span><input id="msa-chat-background-file" type="file" accept="image/*"></label>
+            ${hasBackground ? `<button class="msa-background-clear" type="button" data-action="clear-chat-background">${icon('trash-can')} 移除自訂背景</button>` : ''}
+            <p>圖片不需要放在伺服器資料夾，雲端版與手機版都會從這組擴充設定讀取。</p>
+        </div>`;
+    showSheet('聊天室背景', content);
+}
+
+async function setChatBackgroundFromFile(file) {
+    if (!file) return;
+    const input = document.getElementById('msa-chat-background-file');
+    if (input) input.disabled = true;
+    notify('正在處理聊天室背景……', 'info');
+    try {
+        settings().chatBackground = await optimizeChatBackground(file);
+        saveSettings();
+        applyVisualSettings();
+        render(activeView);
+        openChatBackgroundSheet();
+        notify('聊天室背景已套用。', 'success');
+    } catch (error) {
+        notify(error.message || '背景圖片讀取失敗。', 'error');
+        if (input?.isConnected) input.disabled = false;
+    }
+}
+
+function clearChatBackground() {
+    settings().chatBackground = '';
+    saveSettings();
+    applyVisualSettings();
+    render(activeView);
+    openChatBackgroundSheet();
+    notify('已恢復預設聊天室背景。', 'success');
+}
+
+function nativeSettingOptionsMarkup(kind, control, currentValue) {
+    if (control?.tagName !== 'SELECT') return '';
+    const options = [...control.options].filter(option => !option.disabled && String(option.value).trim());
+    return options.map(option => `
+        <button type="button" class="msa-native-setting-option ${String(option.value) === String(currentValue) ? 'is-current' : ''}" data-native-setting="${kind}" data-native-value="${escapeHtml(option.value)}">
+            <span><strong>${escapeHtml(option.textContent?.trim() || option.value)}</strong><small>${escapeHtml(option.value)}</small></span>${icon(String(option.value) === String(currentValue) ? 'circle-check' : 'chevron-right')}
+        </button>`).join('');
+}
+
+function openNativeSettingSheet(kind) {
+    const isModel = kind === 'model';
+    const runtime = isModel ? getChatModelControl() : getChatPresetControl();
+    const title = isModel ? '切換 AI 模型' : '切換補全預設';
+    if (!runtime.control) {
+        showSheet(title, `<div class="msa-sheet-empty">找不到對應的 SillyTavern 原生設定。請先在 API 連線頁選擇 Chat Completion 來源。</div>`);
+        return;
+    }
+
+    if (runtime.control.tagName !== 'SELECT') {
+        const content = `
+            <div class="msa-custom-model-editor">
+                <small>CUSTOM MODEL</small><strong>自訂模型 ID</strong>
+                <input id="msa-custom-model-value" type="text" value="${escapeHtml(runtime.control.value || '')}" placeholder="輸入模型 ID">
+                <button type="button" class="msa-save-button" data-action="save-custom-model">${icon('floppy-disk')} 套用模型</button>
+            </div>`;
+        showSheet(title, content);
+        return;
+    }
+
+    const options = nativeSettingOptionsMarkup(kind, runtime.control, runtime.control.value);
+    const meta = isModel ? `目前 API 來源：${escapeHtml(runtime.source || 'Chat Completion')}` : '選擇後會立即套用到 SillyTavern Chat Completion 設定';
+    showSheet(title, `<div class="msa-native-setting-meta">${icon(isModel ? 'microchip' : 'sliders')}<span><strong>${escapeHtml(runtime.label)}</strong><small>${meta}</small></span></div><div class="msa-native-setting-list">${options || '<div class="msa-sheet-empty">目前沒有可用選項。</div>'}</div>`);
+}
+
+function applyNativeSetting(kind, value) {
+    const runtime = kind === 'model' ? getChatModelControl() : getChatPresetControl();
+    const control = runtime.control;
+    if (!control || control.tagName !== 'SELECT' || ![...control.options].some(option => String(option.value) === String(value))) {
+        notify('這個設定選項已不存在，請重新開啟選單。', 'error');
+        return;
+    }
+    control.value = value;
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+    closeSheet();
+    render('messages');
+    notify(kind === 'model' ? 'AI 模型已切換。' : '聊天補全預設已切換。', 'success');
+}
+
+function saveCustomModel() {
+    const runtime = getChatModelControl();
+    const value = document.getElementById('msa-custom-model-value')?.value.trim();
+    if (!runtime.control || !value) {
+        notify('請輸入模型 ID。', 'warning');
+        return;
+    }
+    runtime.control.value = value;
+    runtime.control.dispatchEvent(new Event('input', { bubbles: true }));
+    runtime.control.dispatchEvent(new Event('change', { bubbles: true }));
+    closeSheet();
+    render('messages');
+    notify('自訂模型已套用。', 'success');
+}
+
+async function openPersonaSheet() {
+    showSheet('更換與編輯人設', `<div class="msa-sheet-loading">${icon('spinner')}<span>正在讀取 SillyTavern 人設……</span></div>`);
+    try {
+        const { powerUser, currentId } = await getPersonaRuntime();
+        const personas = Object.entries(powerUser.personas)
+            .map(([id, name]) => ({ id, name: String(name || id), descriptor: powerUser.persona_descriptions[id] || {} }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+
+        if (!personas.length) {
+            showSheet('更換與編輯人設', `<div class="msa-sheet-empty">尚未建立任何人設。請先在 SillyTavern 的「人設管理」建立一組人設。</div>`);
+            return;
+        }
+
+        const current = personas.find(persona => persona.id === currentId) || personas[0];
+        const list = personas.map(persona => {
+            const avatar = personaAvatarUrl(persona.id);
+            const description = excerpt(persona.descriptor.description || '尚未填寫人設描述', 52);
+            return `
+                <button type="button" class="msa-persona-option ${persona.id === current.id ? 'is-current' : ''}" data-persona-id="${escapeHtml(persona.id)}">
+                    <span class="msa-persona-avatar" ${avatar ? `style="--msa-persona-avatar:url(&quot;${escapeHtml(avatar)}&quot;)"` : ''}>${icon('user')}</span>
+                    <span><strong>${escapeHtml(persona.name)}</strong><small>${escapeHtml(description)}</small></span>
+                    ${icon(persona.id === current.id ? 'circle-check' : 'chevron-right')}
+                </button>`;
+        }).join('');
+
+        const content = `
+            <div class="msa-persona-intro"><small>目前使用人設</small><strong>${escapeHtml(current.name)}</strong><span>點選上方人設即可切換；下方內容儲存後會立即套用於下一次對話。</span></div>
+            <div class="msa-persona-list">${list}</div>
+            <div id="msa-persona-editor" class="msa-persona-editor" data-persona-id="${escapeHtml(current.id)}">
+                <div class="msa-persona-editor-title">${icon('pen-to-square')}<span><small>EDIT PERSONA</small><strong>直接編輯人設</strong></span></div>
+                <label>人設名稱<input id="msa-persona-name" type="text" maxlength="120" value="${escapeHtml(current.name)}" placeholder="輸入人設名稱"></label>
+                <label>人設描述<textarea id="msa-persona-description" rows="9" maxlength="30000" placeholder="輸入身分、外表、性格、說話方式等人設內容……">${escapeHtml(current.descriptor.description || '')}</textarea></label>
+                <button class="msa-save-button" type="button" data-action="save-persona">${icon('floppy-disk')} 儲存並立即套用</button>
+            </div>`;
+        showSheet('更換與編輯人設', content);
+    } catch (error) {
+        showSheet('更換與編輯人設', `<div class="msa-sheet-empty">無法讀取 SillyTavern 人設資料，請重新整理頁面後再試。</div>`);
+        console.error('[Midnight Signal] Failed to open persona editor.', error);
+    }
+}
+
+async function selectPersonaFromApp(id) {
+    const { ctx, personaModule, powerUser } = await getPersonaRuntime();
+    if (!id || !Object.hasOwn(powerUser.personas, id)) {
+        notify('找不到這組人設。', 'error');
+        return;
+    }
+
+    if (typeof personaModule.setUserAvatar === 'function') {
+        await personaModule.setUserAvatar(id, { navigateToCurrent: false });
+    } else {
+        const nativePersona = [...document.querySelectorAll('#user_avatar_block .avatar-container')]
+            .find(node => node.getAttribute('data-avatar-id') === id);
+        if (nativePersona) nativePersona.click();
+        const descriptor = powerUser.persona_descriptions[id] || {};
+        powerUser.persona_description = descriptor.description || '';
+        const core = await getCoreModule();
+        core.setUserName?.(powerUser.personas[id]);
+        ctx?.saveSettingsDebounced?.();
+    }
+
+    selectedPersonaId = id;
+    await openPersonaSheet();
+    notify(`已切換為人設「${powerUser.personas[id]}」。`, 'success');
+}
+
+async function savePersonaFromApp() {
+    const editor = document.getElementById('msa-persona-editor');
+    const nameInput = document.getElementById('msa-persona-name');
+    const descriptionInput = document.getElementById('msa-persona-description');
+    const id = editor?.dataset.personaId;
+    const newName = nameInput?.value.trim();
+    const newDescription = descriptionInput?.value.trim() || '';
+    if (!id || !newName) {
+        notify('請輸入人設名稱。', 'warning');
+        nameInput?.focus();
+        return;
+    }
+
+    const { ctx, personaModule, powerUser, currentId } = await getPersonaRuntime();
+    if (!Object.hasOwn(powerUser.personas, id)) {
+        notify('找不到要編輯的人設。', 'error');
+        return;
+    }
+
+    const oldName = powerUser.personas[id];
+    const descriptor = powerUser.persona_descriptions[id] ??= {
+        description: '', position: 0, depth: 2, role: 0, lorebook: '', connections: [], title: '',
+    };
+    powerUser.personas[id] = newName;
+    descriptor.description = newDescription;
+
+    const eventTypes = ctx?.eventTypes || ctx?.event_types || {};
+    if (id === currentId || id === selectedPersonaId) {
+        powerUser.persona_description = newDescription;
+        const core = await getCoreModule();
+        core.setUserName?.(newName);
+        personaModule.setPersonaDescription?.();
+    }
+
+    ctx?.saveSettingsDebounced?.();
+    if (oldName !== newName && eventTypes.PERSONA_RENAMED) {
+        await ctx?.eventSource?.emit?.(eventTypes.PERSONA_RENAMED, { avatarId: id, oldName, newName });
+    }
+    if (eventTypes.PERSONA_UPDATED) await ctx?.eventSource?.emit?.(eventTypes.PERSONA_UPDATED, id);
+
+    selectedPersonaId = id;
+    await openPersonaSheet();
+    notify(`人設「${newName}」已儲存並套用。`, 'success');
+}
+
+async function getAppRequestHeaders(options = {}) {
+    const ctx = context();
+    if (typeof ctx?.getRequestHeaders === 'function') return ctx.getRequestHeaders(options);
+    const core = await getCoreModule();
+    return typeof core.getRequestHeaders === 'function' ? core.getRequestHeaders(options) : {};
+}
+
+async function refreshCharacterData() {
+    const ctx = context();
+    let refresh = ctx?.getCharacters;
+    if (typeof refresh !== 'function') {
+        const core = await getCoreModule();
+        refresh = core.getCharacters;
+    }
+    if (typeof refresh === 'function') await refresh.call(ctx);
+}
+
+function triggerCharacterImport() {
+    const input = document.getElementById('character_import_file');
+    if (!input) {
+        notify('找不到 SillyTavern 原生角色卡匯入器，請重新整理頁面後再試。', 'error');
+        return;
+    }
+    input.click();
+}
+
+function openCreateCharacterSheet() {
+    const content = `
+        <div id="msa-new-character-form" class="msa-new-character-form">
+            <div class="msa-create-card-intro">${icon('user-plus')}<span><strong>建立新角色卡</strong><small>儲存後會立即加入 SillyTavern 角色清單。</small></span></div>
+            <label>角色名稱 <b>*</b><input id="msa-new-character-name" type="text" maxlength="120" placeholder="例如：ARK-07"></label>
+            <label>角色頭像 <small>選填，支援 PNG、JPG、GIF</small><input id="msa-new-character-avatar" type="file" accept="image/png,image/jpeg,image/gif"></label>
+            <label>角色描述<textarea id="msa-new-character-description" rows="6" maxlength="30000" placeholder="外表、身分、背景與重要設定……"></textarea></label>
+            <label>性格<textarea id="msa-new-character-personality" rows="4" maxlength="12000" placeholder="性格特徵、情緒反應與說話方式……"></textarea></label>
+            <label>場景<textarea id="msa-new-character-scenario" rows="3" maxlength="12000" placeholder="角色與玩家所在的世界、時間與初始情境……"></textarea></label>
+            <label>開場白<textarea id="msa-new-character-first-message" rows="6" maxlength="30000" placeholder="角色在新聊天中說出的第一段話……"></textarea></label>
+            <button class="msa-save-button" type="button" data-action="create-character">${icon('floppy-disk')} 建立角色卡</button>
+        </div>`;
+    showSheet('新增角色卡', content);
+    setTimeout(() => document.getElementById('msa-new-character-name')?.focus(), 80);
+}
+
+async function createCharacterFromApp() {
+    const nameInput = document.getElementById('msa-new-character-name');
+    const name = nameInput?.value.trim();
+    if (!name) {
+        notify('請輸入角色名稱。', 'warning');
+        nameInput?.focus();
+        return;
+    }
+
+    const button = document.querySelector('[data-action="create-character"]');
+    if (button) button.disabled = true;
+    const formData = new FormData();
+    const fields = {
+        ch_name: name,
+        description: document.getElementById('msa-new-character-description')?.value.trim() || '',
+        personality: document.getElementById('msa-new-character-personality')?.value.trim() || '',
+        scenario: document.getElementById('msa-new-character-scenario')?.value.trim() || '',
+        first_mes: document.getElementById('msa-new-character-first-message')?.value.trim() || '',
+        mes_example: '', creator_notes: '', system_prompt: '', post_history_instructions: '',
+        talkativeness: '0.5', fav: 'false', tags: '', creator: '', character_version: '',
+        depth_prompt_prompt: '', depth_prompt_depth: '4', depth_prompt_role: 'system', extensions: '{}',
+    };
+    for (const [key, value] of Object.entries(fields)) formData.append(key, value);
+    const avatar = document.getElementById('msa-new-character-avatar')?.files?.[0];
+    if (avatar) formData.append('avatar', avatar);
+
+    try {
+        const response = await fetch('/api/characters/create', {
+            method: 'POST',
+            headers: await getAppRequestHeaders({ omitContentType: true }),
+            body: formData,
+            cache: 'no-cache',
+        });
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        await response.text();
+        await refreshCharacterData();
+        closeSheet();
+        render('cards');
+        notify(`角色卡「${name}」已建立。`, 'success');
+    } catch (error) {
+        notify('角色卡建立失敗，請確認名稱與圖片格式後再試。', 'error');
+        console.error('[Midnight Signal] Failed to create character.', error);
+        if (button) button.disabled = false;
+    }
+}
+
+async function deleteCharacterFromApp(id) {
+    const ctx = context();
+    const character = ctx?.characters?.[Number(id)];
+    if (!character) {
+        notify('找不到要刪除的角色卡。', 'error');
+        return;
+    }
+
+    const name = characterName(character);
+    if (!confirm(`確定刪除角色卡「${name}」嗎？\n\n既有聊天紀錄會保留，但角色卡刪除後無法復原。`)) return;
+
+    try {
+        const core = await getCoreModule();
+        let deleted = false;
+        if (typeof core.deleteCharacter === 'function') {
+            deleted = await core.deleteCharacter(characterKey(character), { deleteChats: false });
+        } else {
+            const response = await fetch('/api/characters/delete', {
+                method: 'POST',
+                headers: await getAppRequestHeaders(),
+                body: JSON.stringify({ avatar_url: characterKey(character), delete_chats: false }),
+                cache: 'no-cache',
+            });
+            if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+            deleted = true;
+        }
+        if (!deleted) return;
+        await refreshCharacterData();
+        render('cards');
+        notify(`角色卡「${name}」已刪除，聊天紀錄已保留。`, 'success');
+    } catch (error) {
+        notify('角色卡刪除失敗，請稍後再試。', 'error');
+        console.error('[Midnight Signal] Failed to delete character.', error);
+    }
+}
+
+function toggleFavorite(id) {
+    const character = context()?.characters?.[id];
+    if (!character) return;
+    const value = settings();
+    const key = characterKey(character);
+    const index = value.favorites.indexOf(key);
+    if (index >= 0) value.favorites.splice(index, 1);
+    else value.favorites.push(key);
+    saveSettings();
+    if (!document.getElementById('msa-sheet')?.classList.contains('msa-hidden')) openCharacterSheet();
+    else render();
+}
+
+function saveRelationship() {
+    const character = getCurrentCharacter()?.character;
+    const textarea = document.getElementById('msa-relationship-note');
+    if (!character || !textarea) return;
+    settings().relationshipNotes[characterKey(character)] = textarea.value.trim();
+    saveSettings();
+    notify('關係筆記已儲存。', 'success');
+}
+
+function addMemory() {
+    const character = getCurrentCharacter()?.character;
+    const input = document.getElementById('msa-memory-input');
+    if (!character || !input?.value.trim()) return;
+    const key = characterKey(character);
+    settings().memories[key] ??= [];
+    settings().memories[key].unshift(input.value.trim());
+    saveSettings();
+    render('memories');
+}
+
+function deleteMemory(index) {
+    const character = getCurrentCharacter()?.character;
+    if (!character) return;
+    const list = settings().memories[characterKey(character)] || [];
+    list.splice(Number(index), 1);
+    saveSettings();
+    render('memories');
+}
+
+async function sendMessageFromApp() {
+    const appInput = document.getElementById('msa-chat-input');
+    const message = appInput?.value?.trim();
+    if (!message) return;
+    if (!getCurrentCharacter()) {
+        notify('請先選擇一名對話角色。', 'warning');
+        return;
+    }
+
+    const nativeInput = document.getElementById('send_textarea');
+    const nativeSend = document.getElementById('send_but');
+    if (!nativeInput) {
+        notify('找不到 SillyTavern 原生聊天輸入框，請重新整理頁面後再試。', 'error');
+        return;
+    }
+    const ctx = context();
+    let core = {};
+    if (typeof ctx?.Generate !== 'function' || typeof ctx?.isGenerating !== 'function') {
+        core = await getCoreModule();
+    }
+    const isGenerating = ctx?.isGenerating || core.isGenerating;
+    if (isGenerating?.() || nativeSend?.disabled || nativeSend?.classList.contains('displayNone')) {
+        notify('目前正在生成回覆，請等待完成後再傳送。', 'warning');
+        return;
+    }
+    if (nativeInput.value.trim() && nativeInput.value.trim() !== message) {
+        const replaceDraft = confirm('SillyTavern 原本的聊天輸入框中還有草稿，要用 APP 內的訊息取代草稿並傳送嗎？');
+        if (!replaceDraft) return;
+    }
+
+    appInput.disabled = true;
+    const appSend = document.querySelector('[data-action="send-message"]');
+    if (appSend) appSend.disabled = true;
+
+    nativeInput.value = message;
+    nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(0);
+
+    try {
+        appInput.value = '';
+        const generate = ctx?.Generate || core.Generate;
+        if (typeof generate === 'function') {
+            await generate.call(ctx, 'normal');
+        } else if (nativeSend) {
+            nativeSend.click();
+        } else {
+            throw new Error('SillyTavern generation API unavailable');
+        }
+    } catch (error) {
+        appInput.value = message;
+        notify('訊息傳送失敗，請確認 SillyTavern 已選擇角色並連接模型。', 'error');
+        console.error('[Midnight Signal] Failed to send message.', error);
+    }
+
+    setTimeout(() => {
+        const currentInput = document.getElementById('msa-chat-input');
+        const currentSend = document.querySelector('[data-action="send-message"]');
+        if (currentInput) currentInput.disabled = false;
+        if (currentSend) currentSend.disabled = false;
+    }, 250);
+}
+
+async function handleClick(event) {
+    const button = event.target.closest('button, [data-action], [data-nav]');
+    if (!button) return;
+
+    if (button.dataset.nav) {
+        render(button.dataset.nav);
+        return;
+    }
+    if (button.dataset.profileCharacterId !== undefined) {
+        selectedProfileCharacterId = Number(button.dataset.profileCharacterId);
+        render('profile');
+        return;
+    }
+    if (button.dataset.startCharacterId !== undefined) {
+        button.disabled = true;
+        try {
+            await selectCharacter(Number(button.dataset.startCharacterId));
+            render('messages');
+            notify(`已切換至 ${characterName(getCurrentCharacter()?.character)}。`, 'success');
+        } catch (error) {
+            notify(error.message || '角色切換失敗。', 'error');
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.profileGreetingsId !== undefined) {
+        button.disabled = true;
+        try {
+            await selectCharacter(Number(button.dataset.profileGreetingsId));
+            openGreetingSheet();
+        } catch (error) {
+            notify(error.message || '無法開啟角色開場白。', 'error');
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.nativeSetting !== undefined) {
+        applyNativeSetting(button.dataset.nativeSetting, button.dataset.nativeValue || '');
+        return;
+    }
+    if (button.dataset.characterId !== undefined) {
+        button.disabled = true;
+        try {
+            await selectCharacter(Number(button.dataset.characterId));
+            closeSheet();
+            render('home');
+            notify(`已切換至 ${characterName(getCurrentCharacter()?.character)}。`, 'success');
+        } catch (error) {
+            notify(error.message || '角色切換失敗。', 'error');
+        } finally {
+            button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.favoriteId !== undefined) {
+        toggleFavorite(Number(button.dataset.favoriteId));
+        return;
+    }
+    if (button.dataset.greetingIndex !== undefined) {
+        button.disabled = true;
+        try {
+            await applyGreeting(Number(button.dataset.greetingIndex));
+            closeSheet();
+            render('home');
+            notify('已套用新的開場白。', 'success');
+        } catch (error) {
+            notify(error.message || '開場白切換失敗。', 'error');
+        } finally {
+            button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.personaId !== undefined) {
+        button.disabled = true;
+        try {
+            await selectPersonaFromApp(button.dataset.personaId);
+        } catch (error) {
+            notify('人設切換失敗，請重新整理頁面後再試。', 'error');
+            console.error('[Midnight Signal] Failed to switch persona.', error);
+        } finally {
+            button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.deleteCharacter !== undefined) {
+        button.disabled = true;
+        try {
+            await deleteCharacterFromApp(button.dataset.deleteCharacter);
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.deleteMemory !== undefined) {
+        deleteMemory(button.dataset.deleteMemory);
+        return;
+    }
+
+    const actions = {
+        close: hideApp,
+        'close-sheet': closeSheet,
+        characters: openCharacterSheet,
+        greetings: openGreetingSheet,
+        notifications: openNotifications,
+        personas: openPersonaSheet,
+        'chat-background': openChatBackgroundSheet,
+        'clear-chat-background': clearChatBackground,
+        'switch-model': () => openNativeSettingSheet('model'),
+        'switch-preset': () => openNativeSettingSheet('preset'),
+        'save-custom-model': saveCustomModel,
+        'import-character': triggerCharacterImport,
+        'new-character': openCreateCharacterSheet,
+        tokens: () => {
+            render('tokens');
+            calculateCurrentChatTokens();
+        },
+        messages: () => render('messages'),
+        relationship: () => render('relationship'),
+        memories: () => render('memories'),
+        moments: () => render('moments'),
+        'save-relationship': saveRelationship,
+        'add-memory': addMemory,
+        'send-message': sendMessageFromApp,
+        'save-persona': savePersonaFromApp,
+        'create-character': createCharacterFromApp,
+        'reset-chat-tokens': async () => {
+            const ctx = context();
+            if (!ctx?.chatMetadata) return;
+            ctx.chatMetadata[TOKEN_CHAT_KEY] = emptyTokenUsage();
+            await ctx.saveMetadata?.();
+            render('tokens');
+            notify('目前聊天的 Token 統計已重設。', 'success');
+        },
+        'reset-all-tokens': async () => {
+            if (!confirm('確定要清除全部 Token 累計嗎？')) return;
+            const ctx = context();
+            ctx.extensionSettings[TOKEN_SETTINGS_KEY] = emptyTokenUsage();
+            ctx.saveSettingsDebounced?.();
+            render('tokens');
+            notify('全部 Token 累計已重設。', 'success');
+        },
+        'reset-data': async () => {
+            if (!confirm('確定要清除 Midnight Signal 的收藏、關係筆記與回憶嗎？')) return;
+            context().extensionSettings[MODULE_ID] = structuredClone(DEFAULT_SETTINGS);
+            saveSettings();
+            render('settings');
+            notify('APP 筆記資料已清除。', 'success');
+        },
+    };
+    actions[button.dataset.action]?.();
+}
+
+function handleChange(event) {
+    if (event.target?.id === 'msa-chat-background-file') {
+        setChatBackgroundFromFile(event.target.files?.[0]);
+        return;
+    }
+    const input = event.target.closest('[data-setting]');
+    if (!input) return;
+    if (input.dataset.setting === 'chatFontSize') {
+        handleInput(event);
+        return;
+    }
+    settings()[input.dataset.setting] = input.type === 'checkbox' ? input.checked : input.value;
+    saveSettings();
+    render('settings');
+}
+
+function handleInput(event) {
+    const input = event.target.closest('[data-setting="chatFontSize"]');
+    if (!input) return;
+    const value = Math.min(22, Math.max(10, Number(input.value) || 12));
+    settings().chatFontSize = value;
+    applyVisualSettings();
+    const output = document.getElementById('msa-chat-font-value');
+    if (output) output.textContent = `${value} px`;
+    saveSettings();
+}
+
+function mount() {
+    if (document.getElementById(ROOT_ID)) return;
+    document.body.insertAdjacentHTML('beforeend', launcherMarkup());
+    document.body.insertAdjacentHTML('beforeend', shellMarkup());
+
+    document.getElementById('msa-launcher').addEventListener('click', () => showApp('home'));
+    document.getElementById(ROOT_ID).addEventListener('click', handleClick);
+    document.getElementById(ROOT_ID).addEventListener('change', handleChange);
+    document.getElementById(ROOT_ID).addEventListener('input', handleInput);
+    document.getElementById(ROOT_ID).addEventListener('focusin', event => {
+        scheduleViewportSync();
+        if (event.target.id === 'msa-chat-input') {
+            setTimeout(() => event.target.scrollIntoView?.({ block: 'nearest' }), 80);
+        }
+    });
+    document.getElementById(ROOT_ID).addEventListener('focusout', () => setTimeout(scheduleViewportSync, 80));
+    document.getElementById(ROOT_ID).addEventListener('keydown', event => {
+        if (event.key === 'Escape') hideApp();
+        if (event.key === 'Enter' && event.target.id === 'msa-memory-input') addMemory();
+        if (event.key === 'Enter' && event.target.id === 'msa-chat-input' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessageFromApp();
+        }
+    });
+
+    globalThis.addEventListener?.('resize', scheduleViewportSync, { passive: true });
+    globalThis.addEventListener?.('orientationchange', () => {
+        fullViewportHeight = 0;
+        setTimeout(scheduleViewportSync, 120);
+    }, { passive: true });
+    globalThis.visualViewport?.addEventListener?.('resize', scheduleViewportSync, { passive: true });
+    globalThis.visualViewport?.addEventListener?.('scroll', scheduleViewportSync, { passive: true });
+    syncViewportMetrics();
+
+    const extensionsMenu = document.querySelector('#extensionsMenu');
+    if (extensionsMenu && !document.getElementById('msa-extension-menu-button')) {
+        extensionsMenu.insertAdjacentHTML('beforeend', `<div id="msa-extension-menu-button" class="list-group-item flex-container flexGap5 interactable" tabindex="0">${icon('mobile-screen-button')}<span>Midnight Signal APP</span></div>`);
+        document.getElementById('msa-extension-menu-button').addEventListener('click', () => showApp('home'));
+    }
+
+    const characterImportInput = document.getElementById('character_import_file');
+    if (characterImportInput && !characterImportInput.dataset.msaRefreshBound) {
+        characterImportInput.dataset.msaRefreshBound = 'true';
+        characterImportInput.addEventListener('change', async () => {
+            for (let attempt = 0; attempt < 40; attempt++) {
+                await sleep(250);
+                if (!characterImportInput.value) break;
+            }
+            try {
+                await refreshCharacterData();
+                if (activeView === 'cards' && !document.getElementById(ROOT_ID)?.classList.contains('msa-hidden')) render('cards');
+            } catch (error) {
+                console.warn('[Midnight Signal] Unable to refresh characters after import.', error);
+            }
+        });
+    }
+
+    const ctx = context();
+    installTokenTracker();
+    const refresh = () => {
+        const currentId = context()?.characterId;
+        selectedCharacterId = currentId !== undefined && currentId !== null && Number.isInteger(Number(currentId)) ? Number(currentId) : selectedCharacterId;
+        if (!document.getElementById(ROOT_ID)?.classList.contains('msa-hidden')) render(activeView);
+        if (activeView === 'tokens') calculateCurrentChatTokens();
+    };
+    ['CHAT_CHANGED', 'CHARACTER_EDITED', 'CHARACTER_DELETED', 'CHARACTER_CREATED', 'MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_SWIPED'].forEach(name => {
+        const eventName = ctx?.event_types?.[name];
+        if (eventName) ctx.eventSource?.on?.(eventName, refresh);
+    });
+
+    selectedCharacterId = ctx?.characterId !== undefined && ctx?.characterId !== null && Number.isInteger(Number(ctx.characterId)) ? Number(ctx.characterId) : null;
+    if (settings().autoOpen) setTimeout(() => showApp('home'), 350);
+    console.info('[Midnight Signal] Extension loaded.');
+}
+
+async function initialize() {
+    for (let attempt = 0; attempt < 100; attempt++) {
+        if (globalThis.SillyTavern?.getContext && document.body) {
+            mount();
+            return;
+        }
+        await sleep(100);
+    }
+    console.error('[Midnight Signal] SillyTavern context was not available.');
+}
+
+initialize();

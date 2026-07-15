@@ -3,6 +3,10 @@ const ROOT_ID = 'msa-root';
 const TOKEN_SETTINGS_KEY = 'token_usage_panel';
 const TOKEN_CHAT_KEY = 'token_usage_panel_data';
 const TOKEN_FETCH_GUARD = '__midnightSignalTokenFetchPatched';
+const ROLEPLAY_CHAT_KEY = 'midnight_signal_roleplay_context';
+const ROLEPLAY_PROMPT_KEY = 'midnight_signal_relationship_memory';
+const ROLEPLAY_PROMPT_DEPTH = 4;
+const ROLEPLAY_PROMPT_MAX_MEMORIES = 24;
 const CHAT_MODEL_SELECTORS = Object.freeze({
     openai: 'model_openai_select', claude: 'model_claude_select', openrouter: 'model_openrouter_select',
     ai21: 'model_ai21_select', makersuite: 'model_google_select', vertexai: 'model_vertexai_select',
@@ -58,6 +62,93 @@ function settings() {
 
 function saveSettings() {
     context()?.saveSettingsDebounced?.();
+}
+
+function emptyChatRoleplayState(character = null) {
+    return {
+        version: 1,
+        characterKey: character ? characterKey(character) : '',
+        relationshipNote: '',
+        memories: [],
+        migratedFromLegacy: false,
+    };
+}
+
+function getChatRoleplayState() {
+    const ctx = context();
+    const current = getCurrentCharacter()?.character;
+    if (!ctx?.chatMetadata || !current || ctx.groupId) return emptyChatRoleplayState(current);
+
+    const activeCharacterKey = characterKey(current);
+    let state = ctx.chatMetadata[ROLEPLAY_CHAT_KEY];
+    if (!state || typeof state !== 'object' || (state.characterKey && state.characterKey !== activeCharacterKey)) {
+        state = emptyChatRoleplayState(current);
+        ctx.chatMetadata[ROLEPLAY_CHAT_KEY] = state;
+    }
+    state.version = 1;
+    state.characterKey = activeCharacterKey;
+    if (typeof state.relationshipNote !== 'string') state.relationshipNote = '';
+    if (!Array.isArray(state.memories)) state.memories = [];
+
+    if (!state.migratedFromLegacy) {
+        const legacy = settings();
+        if (!state.relationshipNote && typeof legacy.relationshipNotes?.[activeCharacterKey] === 'string') {
+            state.relationshipNote = legacy.relationshipNotes[activeCharacterKey];
+        }
+        if (!state.memories.length && Array.isArray(legacy.memories?.[activeCharacterKey])) {
+            state.memories = [...legacy.memories[activeCharacterKey]];
+        }
+        state.migratedFromLegacy = true;
+        ctx.saveMetadataDebounced?.();
+    }
+    return state;
+}
+
+async function saveChatRoleplayState() {
+    const ctx = context();
+    if (typeof ctx?.saveMetadata === 'function') await ctx.saveMetadata();
+    else ctx?.saveMetadataDebounced?.();
+}
+
+function buildRoleplayContextPrompt() {
+    const current = getCurrentCharacter()?.character;
+    if (!current || context()?.groupId) return '';
+    const state = getChatRoleplayState();
+    const relationship = state.relationshipNote.trim();
+    const memories = state.memories
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+        .slice(0, ROLEPLAY_PROMPT_MAX_MEMORIES);
+    if (!relationship && !memories.length) return '';
+
+    return [
+        `[Midnight Signal｜${characterName(current)}｜目前聊天室專屬資料]`,
+        relationship ? `[關係狀態]\n${relationship}` : '',
+        memories.length ? `[重要記憶]\n${memories.map(item => `- ${item}`).join('\n')}` : '',
+        '[使用規則]\n以上是角色與玩家在目前聊天室中已成立的關係與共同經歷。回覆時應自然延續並避免矛盾；除非情境需要，不要逐條複述，也不要提及「提示詞」、「資料庫」或「記憶欄位」。',
+    ].filter(Boolean).join('\n\n');
+}
+
+async function syncRoleplayContextPrompt() {
+    const ctx = context();
+    let setPrompt = ctx?.setExtensionPrompt;
+    let promptTypes;
+    let promptRoles;
+    if (typeof setPrompt !== 'function') {
+        const core = await getCoreModule();
+        setPrompt = core.setExtensionPrompt;
+        promptTypes = core.extension_prompt_types;
+        promptRoles = core.extension_prompt_roles;
+    }
+    if (typeof setPrompt !== 'function') {
+        console.warn('[Midnight Signal] SillyTavern extension prompt API is unavailable.');
+        return false;
+    }
+    const prompt = buildRoleplayContextPrompt();
+    const inChatPosition = promptTypes?.IN_CHAT ?? 1;
+    const systemRole = promptRoles?.SYSTEM ?? 0;
+    setPrompt.call(ctx, ROLEPLAY_PROMPT_KEY, prompt, inChatPosition, ROLEPLAY_PROMPT_DEPTH, false, systemRole);
+    return true;
 }
 
 function getChatFontSize() {
@@ -300,7 +391,7 @@ function installTokenTracker() {
     };
 
     const ctx = context();
-    const messageSent = ctx?.event_types?.MESSAGE_SENT;
+    const messageSent = ctx?.eventTypes?.MESSAGE_SENT || ctx?.event_types?.MESSAGE_SENT;
     if (messageSent) ctx.eventSource?.on?.(messageSent, recordTokenUserMessage);
 }
 
@@ -738,7 +829,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.2.4</p>
+            <p class="msa-version">Midnight Signal APP · v2.3.0</p>
         </section>`;
 }
 
@@ -790,35 +881,34 @@ function messagesMarkup() {
 }
 
 function relationshipMarkup() {
-    const selected = getProfileCharacter();
-    if (!selected) return emptyMarkup('請先選擇角色', '關係筆記會分別儲存在每一名角色之下。');
-    const { character, id } = selected;
-    const key = characterKey(character);
-    const value = settings().relationshipNotes[key] || '';
-    const isCurrentChat = Number(context()?.characterId) === id;
-    const rounds = isCurrentChat ? Math.max(0, (context()?.chat?.length || 1) - 1) : 0;
+    const current = getCurrentCharacter();
+    if (!current) return emptyMarkup('請先選擇角色', '關係狀態會分別儲存在每一個角色聊天室。');
+    const { character } = current;
+    const state = getChatRoleplayState();
+    const rounds = Math.max(0, (context()?.chat?.length || 1) - 1);
     return `
         <section class="msa-page">
             <div class="msa-page-title"><span><small>RELATIONSHIP</small><strong>與 ${escapeHtml(characterName(character))} 的關係</strong></span></div>
             ${profileTabsMarkup('relationship')}
-            <div class="msa-stat-card"><span>${isCurrentChat ? '目前對話回合' : '目前未載入此角色聊天'}</span><strong>${rounds}</strong></div>
+            <p class="msa-context-sync-note">${icon('link')} 此內容只屬於目前聊天室，角色每次回覆前都會讀取</p>
+            <div class="msa-stat-card"><span>目前聊天室對話回合</span><strong>${rounds}</strong></div>
             <label class="msa-textarea-label">關係備忘錄
-                <textarea id="msa-relationship-note" rows="9" placeholder="例如：目前互相信任、約定下次去看海……">${escapeHtml(value)}</textarea>
+                <textarea id="msa-relationship-note" rows="9" maxlength="6000" placeholder="例如：目前互相信任、約定下次去看海……">${escapeHtml(state.relationshipNote)}</textarea>
             </label>
-            <button class="msa-save-button" type="button" data-action="save-relationship">${icon('floppy-disk')} 儲存關係筆記</button>
+            <button class="msa-save-button" type="button" data-action="save-relationship">${icon('floppy-disk')} 儲存並同步至角色回覆</button>
         </section>`;
 }
 
 function memoriesMarkup() {
-    const selected = getProfileCharacter();
-    if (!selected) return emptyMarkup('請先選擇角色', '你可以為不同角色保存獨立的回憶。');
-    const { character } = selected;
-    const key = characterKey(character);
-    const list = settings().memories[key] || [];
+    const current = getCurrentCharacter();
+    if (!current) return emptyMarkup('請先選擇角色', '重要記憶會分別儲存在每一個角色聊天室。');
+    const { character } = current;
+    const list = getChatRoleplayState().memories;
     return `
         <section class="msa-page">
             <div class="msa-page-title"><span><small>MEMORIES</small><strong>和 ${escapeHtml(characterName(character))} 的回憶</strong></span></div>
             ${profileTabsMarkup('memories')}
+            <p class="msa-context-sync-note">${icon('link')} 每個聊天室獨立保存；最近 ${ROLEPLAY_PROMPT_MAX_MEMORIES} 則會同步至角色回覆</p>
             <div class="msa-add-row"><input id="msa-memory-input" type="text" maxlength="240" placeholder="記下一件重要的事"><button type="button" data-action="add-memory">${icon('plus')}</button></div>
             <div class="msa-memory-list">${list.length ? list.map((item, index) => `
                 <article><span>${icon('heart')}<p>${escapeHtml(item)}</p></span><button type="button" data-delete-memory="${index}" aria-label="刪除">${icon('trash')}</button></article>`).join('') : '<p class="msa-list-hint">尚未新增回憶。</p>'}</div>
@@ -1490,33 +1580,54 @@ function toggleFavorite(id) {
     else render();
 }
 
-function saveRelationship() {
-    const character = getProfileCharacter()?.character;
+async function saveRelationship() {
+    const character = getCurrentCharacter()?.character;
     const textarea = document.getElementById('msa-relationship-note');
     if (!character || !textarea) return;
-    settings().relationshipNotes[characterKey(character)] = textarea.value.trim();
-    saveSettings();
-    notify('關係筆記已儲存。', 'success');
+    getChatRoleplayState().relationshipNote = textarea.value.trim();
+    await saveChatRoleplayState();
+    await syncRoleplayContextPrompt();
+    notify('目前聊天室的關係狀態已儲存並同步。', 'success');
 }
 
-function addMemory() {
-    const character = getProfileCharacter()?.character;
+async function addMemory() {
+    const character = getCurrentCharacter()?.character;
     const input = document.getElementById('msa-memory-input');
     if (!character || !input?.value.trim()) return;
-    const key = characterKey(character);
-    settings().memories[key] ??= [];
-    settings().memories[key].unshift(input.value.trim());
-    saveSettings();
+    getChatRoleplayState().memories.unshift(input.value.trim());
+    await saveChatRoleplayState();
+    await syncRoleplayContextPrompt();
     render('memories');
 }
 
-function deleteMemory(index) {
-    const character = getProfileCharacter()?.character;
+async function deleteMemory(index) {
+    const character = getCurrentCharacter()?.character;
     if (!character) return;
-    const list = settings().memories[characterKey(character)] || [];
+    const list = getChatRoleplayState().memories;
     list.splice(Number(index), 1);
-    saveSettings();
+    await saveChatRoleplayState();
+    await syncRoleplayContextPrompt();
     render('memories');
+}
+
+async function openProfileStateView(view) {
+    const selected = getProfileCharacter();
+    if (!selected) {
+        notify('請先選擇一名角色。', 'warning');
+        return;
+    }
+    if (Number(context()?.characterId) !== selected.id) {
+        try {
+            notify(`正在開啟「${characterName(selected.character)}」目前的聊天室……`, 'info');
+            await selectCharacter(selected.id);
+        } catch (error) {
+            notify(error.message || '無法開啟這名角色的聊天室。', 'error');
+            return;
+        }
+    }
+    selectedProfileCharacterId = Number(context()?.characterId);
+    render(view);
+    await syncRoleplayContextPrompt();
 }
 
 async function sendMessageFromApp() {
@@ -1560,6 +1671,7 @@ async function sendMessageFromApp() {
 
     try {
         appInput.value = '';
+        await syncRoleplayContextPrompt();
         const generate = ctx?.Generate || core.Generate;
         if (typeof generate === 'function') {
             await generate.call(ctx, 'normal');
@@ -1720,8 +1832,8 @@ async function handleClick(event) {
         },
         profile: () => render('profile'),
         messages: () => render('messages'),
-        relationship: () => render('relationship'),
-        memories: () => render('memories'),
+        relationship: () => openProfileStateView('relationship'),
+        memories: () => openProfileStateView('memories'),
         moments: () => render('moments'),
         'save-relationship': saveRelationship,
         'add-memory': addMemory,
@@ -1745,11 +1857,15 @@ async function handleClick(event) {
             notify('全部 Token 累計已重設。', 'success');
         },
         'reset-data': async () => {
-            if (!confirm('確定要清除 Midnight Signal 的收藏、關係筆記與回憶嗎？')) return;
-            context().extensionSettings[MODULE_ID] = structuredClone(DEFAULT_SETTINGS);
+            if (!confirm('確定要清除 Midnight Signal 的收藏，以及目前聊天室的關係狀態與重要記憶嗎？')) return;
+            const ctx = context();
+            ctx.extensionSettings[MODULE_ID] = structuredClone(DEFAULT_SETTINGS);
+            if (ctx.chatMetadata) ctx.chatMetadata[ROLEPLAY_CHAT_KEY] = emptyChatRoleplayState(getCurrentCharacter()?.character);
             saveSettings();
+            await saveChatRoleplayState();
+            await syncRoleplayContextPrompt();
             render('settings');
-            notify('APP 筆記資料已清除。', 'success');
+            notify('收藏與目前聊天室資料已清除。', 'success');
         },
     };
     actions[button.dataset.action]?.();
@@ -1859,18 +1975,21 @@ function mount() {
 
     const ctx = context();
     installTokenTracker();
-    const refresh = () => {
+    const refresh = async () => {
         const currentId = context()?.characterId;
         selectedCharacterId = currentId !== undefined && currentId !== null && Number.isInteger(Number(currentId)) ? Number(currentId) : selectedCharacterId;
+        if (['relationship', 'memories'].includes(activeView)) selectedProfileCharacterId = selectedCharacterId;
+        await syncRoleplayContextPrompt();
         if (!document.getElementById(ROOT_ID)?.classList.contains('msa-hidden')) render(activeView);
         if (activeView === 'tokens') calculateCurrentChatTokens();
     };
     ['CHAT_CHANGED', 'CHARACTER_EDITED', 'CHARACTER_DELETED', 'CHARACTER_CREATED', 'MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_SWIPED'].forEach(name => {
-        const eventName = ctx?.event_types?.[name];
+        const eventName = ctx?.eventTypes?.[name] || ctx?.event_types?.[name];
         if (eventName) ctx.eventSource?.on?.(eventName, refresh);
     });
 
     selectedCharacterId = ctx?.characterId !== undefined && ctx?.characterId !== null && Number.isInteger(Number(ctx.characterId)) ? Number(ctx.characterId) : null;
+    syncRoleplayContextPrompt().catch(error => console.warn('[Midnight Signal] Unable to initialize roleplay context prompt.', error));
     if (settings().autoOpen) setTimeout(() => showApp('home'), 350);
     console.info('[Midnight Signal] Extension loaded.');
 }

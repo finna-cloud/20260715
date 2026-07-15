@@ -968,3 +968,19 @@ body.msa-open { overflow: hidden; }
     border-color: rgba(125,232,215,.62);
     background: rgba(49,114,104,.28);
 }
+
+/* v2.3.0 — per-chat relationship and memory prompt bridge */
+#msa-root .msa-context-sync-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 11px;
+    padding: 10px 12px;
+    border: 1px solid rgba(111,232,213,.22);
+    border-radius: 14px;
+    color: #9adfd5;
+    background: rgba(58,145,133,.075);
+    font-size: calc(8px * var(--msa-ui-font-scale, 1));
+    line-height: 1.5;
+}
+#msa-root .msa-context-sync-note > i { flex: 0 0 auto; color: #7de8d7; }

@@ -582,6 +582,7 @@ function homeMarkup() {
     const characters = getCharacters();
     const messages = (context()?.chat || []).filter(message => !message?.is_system).length;
     const currentAvatar = originalAvatarUrl(character);
+    const tokenUsage = getChatTokenUsage();
     return `
         <section class="msa-home msa-discover-home">
             <div class="msa-discover-heading">
@@ -600,7 +601,14 @@ function homeMarkup() {
             <article class="msa-current-session" style="--msa-current-avatar:url(&quot;${escapeHtml(currentAvatar)}&quot;)">
                 <span class="msa-current-session-shade"></span>
                 <div class="msa-current-session-copy"><small><b></b> CURRENT SIGNAL</small><strong>${escapeHtml(name)}</strong><p>${escapeHtml(excerpt(getLatestMessage(), 76))}</p></div>
-                <div class="msa-current-session-stats"><span><b>${messages}</b> 則訊息</span><button type="button" data-action="messages">繼續對話 ${icon('arrow-right')}</button></div>
+                <div class="msa-current-session-stats">
+                    <span><b>${messages}</b> 則訊息</span>
+                    <button class="msa-session-token-button" type="button" data-action="tokens" aria-label="開啟 TOKEN USAGE 實際用量明細">
+                        <span><small>ACTUAL API TOKENS</small><strong>TOKEN USAGE</strong></span>
+                        <b><small>聊天累計 / 本次</small><strong><span id="msa-token-home-chat">${formatToken(tokenUsage.total)}</span> / <span id="msa-token-home-last">${formatToken(tokenUsage.lastTotal)}</span></strong></b>
+                        ${icon('chevron-right')}
+                    </button>
+                </div>
             </article>
 
             <div class="msa-section-heading"><span><small>CHARACTER FEED</small><strong>角色卡</strong></span><output id="msa-character-result-count">${characters.length} 位角色</output></div>
@@ -714,7 +722,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.2.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.2.2</p>
         </section>`;
 }
 

@@ -994,18 +994,19 @@ body.msa-open { overflow: hidden; }
 #msa-root .msa-conversations-heading em { color: #837d8d; font-size: calc(8px * var(--msa-ui-font-scale, 1)); font-style: normal; }
 #msa-root .msa-conversations-heading > button { flex: 0 0 auto; min-height: 40px; padding: 0 12px; border: 1px solid rgba(111,232,213,.25); border-radius: 13px; color: #a3eee3; background: rgba(58,151,138,.1); cursor: pointer; }
 #msa-root .msa-conversation-role-list { display: grid; max-height: min(66dvh, 610px); overflow-x: hidden; overflow-y: auto; align-content: start; gap: 10px; padding: 1px 3px 5px 1px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(157,132,255,.45) transparent; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
-#msa-root .msa-conversation-role { overflow: hidden; border: 1px solid rgba(205,195,255,.11); border-radius: 20px; background: rgba(23,20,33,.96); }
+#msa-root .msa-conversation-role { min-height: 56px; overflow: visible; border: 1px solid rgba(205,195,255,.11); border-radius: 20px; background: rgba(23,20,33,.96); }
 #msa-root .msa-conversation-role.is-current { border-color: rgba(111,232,213,.34); background: linear-gradient(135deg, rgba(58,151,138,.1), rgba(129,104,229,.07)); }
-#msa-root .msa-conversation-role > button { display: grid; grid-template-columns: 42px minmax(0, 1fr) 10px; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 14px 6px 10px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
-#msa-root .msa-conversation-role-art { position: relative; display: block; width: 36px; height: 36px; overflow: hidden; align-self: center; justify-self: center; border: 1px solid rgba(205,195,255,.18); border-radius: 50%; background: radial-gradient(circle at 50% 42%, rgba(111,232,213,.13), #15111e 72%); box-shadow: 0 0 0 3px rgba(111,232,213,.045); image-rendering: auto; }
-#msa-root .msa-conversation-role-art::before { position: absolute; inset: 18%; border-radius: 2px; background-image: var(--msa-conversation-avatar); background-position: center; background-repeat: no-repeat; background-size: contain; content: ''; image-rendering: auto; }
+#msa-root .msa-conversation-role > button { position: relative; display: block; width: 100%; min-height: 56px !important; height: auto !important; overflow: visible; padding: 8px 34px 8px 64px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+#msa-root .msa-conversation-role-art { position: absolute; top: 50%; left: 11px; z-index: 2; display: grid; width: 40px; height: 40px; overflow: hidden; place-items: center; border: 1px solid rgba(205,195,255,.18); border-radius: 50%; background: radial-gradient(circle at 50% 42%, rgba(111,232,213,.13), #15111e 72%); box-shadow: 0 0 0 3px rgba(111,232,213,.045); transform: translateY(-50%); }
+#msa-root .msa-conversation-role-art > img { display: block; width: 100%; height: 100%; padding: 7px; border-radius: 50%; object-fit: contain; object-position: center; image-rendering: auto; }
+#msa-root .msa-conversation-role-art > i { color: #91899d; font-size: 16px; }
 #msa-root .msa-conversation-role-copy { display: grid; min-width: 0; gap: 7px; }
 #msa-root .msa-conversation-role-copy > span { display: flex; min-width: 0; align-items: center; gap: 7px; }
 #msa-root .msa-conversation-role-copy strong { overflow: hidden; color: #f2edf7; font-size: calc(13px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
 #msa-root .msa-conversation-role-copy b { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; color: #91ecdf; background: rgba(58,151,138,.15); font-size: calc(6px * var(--msa-ui-font-scale, 1)); }
 #msa-root .msa-conversation-role-copy small { display: -webkit-box; overflow: hidden; color: #8e8798; font-size: calc(8px * var(--msa-ui-font-scale, 1)); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 #msa-root .msa-conversation-role-copy em { color: #a99ce0; font-size: calc(8px * var(--msa-ui-font-scale, 1)); font-style: normal; }
-#msa-root .msa-conversation-role > button > i { color: #7c7587; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-conversation-role > button > i:last-child { position: absolute; top: 50%; right: 14px; color: #7c7587; font-size: calc(8px * var(--msa-ui-font-scale, 1)); transform: translateY(-50%); }
 
 #msa-root .msa-threads-page {
     display: flex;
@@ -1198,8 +1199,10 @@ body.msa-open { overflow: hidden; }
 #msa-root .msa-roleplay-chat-chip > i:last-child { color: #827a8f; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
 
 @media (max-width: 390px) {
-    #msa-root .msa-conversation-role > button { grid-template-columns: 40px minmax(0, 1fr) 9px; gap: 8px; min-height: 50px; padding: 6px 10px 6px 8px; }
-    #msa-root .msa-conversation-role-art { width: 34px; height: 34px; }
+    #msa-root .msa-conversation-role { min-height: 52px; }
+    #msa-root .msa-conversation-role > button { min-height: 52px !important; padding: 7px 28px 7px 57px; }
+    #msa-root .msa-conversation-role-art { left: 9px; width: 36px; height: 36px; }
+    #msa-root .msa-conversation-role-art > img { padding: 6px; }
     #msa-root .msa-threads-hero { min-height: 145px; }
     #msa-root .msa-thread-list { max-height: 48dvh; }
     #msa-root .msa-chat-contactbar { grid-template-columns: 36px minmax(0, 1fr) 36px 36px; gap: 6px; padding-inline: 9px; }

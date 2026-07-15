@@ -972,7 +972,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.4.2</p>
+            <p class="msa-version">Midnight Signal APP · v2.4.3</p>
         </section>`;
 }
 
@@ -1001,7 +1001,7 @@ function conversationsMarkup() {
             <div class="msa-conversation-role-list">${characters.length ? characters.map(({ character, id }) => `
                 <article class="msa-conversation-role ${id === currentId ? 'is-current' : ''}">
                     <button type="button" data-conversation-character-id="${id}">
-                        <span class="msa-conversation-role-art" style="--msa-conversation-avatar:url(&quot;${escapeHtml(originalAvatarUrl(character))}&quot;)"></span>
+                        <span class="msa-conversation-role-art">${originalAvatarUrl(character) ? `<img src="${escapeHtml(originalAvatarUrl(character))}" alt="" loading="lazy" decoding="async">` : icon('user')}</span>
                         <span class="msa-conversation-role-copy">
                             <span><strong>${escapeHtml(characterName(character))}</strong>${id === currentId ? '<b>目前</b>' : ''}</span>
                             <small>${escapeHtml(excerpt(character.description || character.data?.description || '點擊查看這名角色的聊天室。', 72))}</small>

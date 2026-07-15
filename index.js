@@ -972,7 +972,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.4.3</p>
+            <p class="msa-version">Midnight Signal APP · v2.4.4</p>
         </section>`;
 }
 
@@ -1003,11 +1003,8 @@ function conversationsMarkup() {
                     <button type="button" data-conversation-character-id="${id}">
                         <span class="msa-conversation-role-art">${originalAvatarUrl(character) ? `<img src="${escapeHtml(originalAvatarUrl(character))}" alt="" loading="lazy" decoding="async">` : icon('user')}</span>
                         <span class="msa-conversation-role-copy">
-                            <span><strong>${escapeHtml(characterName(character))}</strong>${id === currentId ? '<b>目前</b>' : ''}</span>
-                            <small>${escapeHtml(excerpt(character.description || character.data?.description || '點擊查看這名角色的聊天室。', 72))}</small>
-                            <em>${icon('comments')} 查看聊天室</em>
+                            <strong>${escapeHtml(characterName(character))}</strong>
                         </span>
-                        ${icon('chevron-right')}
                     </button>
                 </article>`).join('') : '<div class="msa-thread-state"><i class="fa-solid fa-user-slash"></i><strong>還沒有角色</strong><span>請先匯入或新增角色卡。</span><button type="button" data-nav="cards">前往角色管理</button></div>'}</div>
         </section>`;

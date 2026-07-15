@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     relationshipNotes: {},
     memories: {},
     compactMode: false,
+    uiFontScale: 1,
     chatFontSize: 12,
     chatBackground: '',
 });
@@ -64,9 +65,15 @@ function getChatFontSize() {
     return Math.min(22, Math.max(10, Number.isFinite(value) ? value : 12));
 }
 
+function getUIFontScale() {
+    const value = Number(settings().uiFontScale);
+    return Math.min(1.4, Math.max(0.8, Number.isFinite(value) ? value : 1));
+}
+
 function applyVisualSettings(root = document.getElementById(ROOT_ID)) {
     if (!root) return;
     root.classList.toggle('msa-compact', settings().compactMode);
+    root.style.setProperty('--msa-ui-font-scale', String(getUIFontScale()));
     root.style.setProperty('--msa-chat-font-size', `${getChatFontSize()}px`);
     const background = String(settings().chatBackground || '');
     const safeBackground = background.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
@@ -676,6 +683,7 @@ function characterProfileMarkup() {
 
 function settingsMarkup() {
     const value = settings();
+    const uiFontPercent = Math.round(getUIFontScale() * 100);
     const chatFontSize = getChatFontSize();
     return `
         <section class="msa-page">
@@ -687,6 +695,12 @@ function settingsMarkup() {
             <label class="msa-setting-row">
                 <span><strong>緊湊模式</strong><small>縮小按鈕與區塊間距</small></span>
                 <input type="checkbox" data-setting="compactMode" ${value.compactMode ? 'checked' : ''}>
+            </label>
+            <label class="msa-setting-row msa-font-setting msa-ui-font-setting">
+                <span><strong>UI 介面字體</strong><small>調整按鈕、標題、角色卡與設定文字，不影響聊天訊息</small></span>
+                <output id="msa-ui-font-value" for="msa-ui-font-size">${uiFontPercent}%</output>
+                <input id="msa-ui-font-size" type="range" min="80" max="140" step="5" value="${uiFontPercent}" data-setting="uiFontScale" aria-label="UI 介面字體大小">
+                <span class="msa-ui-font-preview"><b>介面文字預覽</b><em>按鈕與標題會依此比例顯示</em></span>
             </label>
             <label class="msa-setting-row msa-font-setting">
                 <span><strong>聊天室訊息字體</strong><small>調整訊息泡泡內的文字大小</small></span>
@@ -700,7 +714,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.1.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.2.0</p>
         </section>`;
 }
 
@@ -1721,7 +1735,7 @@ function handleChange(event) {
     }
     const input = event.target.closest('[data-setting]');
     if (!input) return;
-    if (input.dataset.setting === 'chatFontSize') {
+    if (input.dataset.setting === 'chatFontSize' || input.dataset.setting === 'uiFontScale') {
         handleInput(event);
         return;
     }
@@ -1736,8 +1750,17 @@ function handleInput(event) {
         applyCharacterFilters();
         return;
     }
-    const input = event.target.closest('[data-setting="chatFontSize"]');
+    const input = event.target.closest('[data-setting="chatFontSize"], [data-setting="uiFontScale"]');
     if (!input) return;
+    if (input.dataset.setting === 'uiFontScale') {
+        const percent = Math.min(140, Math.max(80, Number(input.value) || 100));
+        settings().uiFontScale = percent / 100;
+        applyVisualSettings();
+        const output = document.getElementById('msa-ui-font-value');
+        if (output) output.textContent = `${percent}%`;
+        saveSettings();
+        return;
+    }
     const value = Math.min(22, Math.max(10, Number(input.value) || 12));
     settings().chatFontSize = value;
     applyVisualSettings();

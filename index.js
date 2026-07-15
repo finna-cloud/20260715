@@ -38,6 +38,10 @@ let selectedProfileCharacterId = null;
 let selectedPersonaId = null;
 let characterSearchQuery = '';
 let characterFilter = 'all';
+let chatThreads = [];
+let chatThreadsCharacterId = null;
+let chatThreadsLoading = false;
+let chatThreadsError = '';
 const avatarRevisions = new Map();
 let fullViewportHeight = 0;
 let viewportFrame = 0;
@@ -408,6 +412,35 @@ function getCurrentCharacter() {
     return ctx?.characters?.[id] ? { character: ctx.characters[id], id } : null;
 }
 
+function currentChatName() {
+    const ctx = context();
+    const current = getCurrentCharacter();
+    return String(ctx?.chatId || current?.character?.chat || '').replace(/\.jsonl$/i, '');
+}
+
+function chatThreadFileName(chat) {
+    return String(chat?.file_name || chat?.file_id || '').replace(/\.jsonl$/i, '');
+}
+
+function chatThreadTimestamp(chat) {
+    const value = chat?.last_mes;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const parsed = Date.parse(String(value || ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatChatThreadTime(chat) {
+    const timestamp = chatThreadTimestamp(chat);
+    if (!timestamp) return '尚無時間';
+    try {
+        return new Intl.DateTimeFormat('zh-TW', {
+            month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(new Date(timestamp));
+    } catch {
+        return '最近使用';
+    }
+}
+
 function characterName(character) {
     return character?.name || character?.data?.name || '尚未選擇角色';
 }
@@ -563,6 +596,116 @@ async function selectCharacter(id) {
         if (Number(context()?.characterId) === Number(id)) break;
         await sleep(100);
     }
+}
+
+async function fetchCharacterChatThreads(characterId) {
+    const ctx = context();
+    const character = ctx?.characters?.[Number(characterId)];
+    if (!character) throw new Error('找不到所選角色。');
+
+    const core = await getCoreModule();
+    let chats;
+    if (typeof core.getPastCharacterChats === 'function') {
+        chats = await core.getPastCharacterChats(Number(characterId));
+    } else {
+        const response = await fetch('/api/characters/chats', {
+            method: 'POST',
+            headers: await getAppRequestHeaders(),
+            body: JSON.stringify({ avatar_url: character.avatar || character.data?.avatar }),
+            cache: 'no-cache',
+        });
+        if (!response.ok) throw new Error('無法讀取聊天室清單。');
+        const data = await response.json();
+        if (data?.error) throw new Error('聊天室清單回傳錯誤。');
+        chats = Object.values(data || {});
+    }
+
+    return (Array.isArray(chats) ? chats : [])
+        .filter(chat => chatThreadFileName(chat))
+        .sort((a, b) => chatThreadTimestamp(b) - chatThreadTimestamp(a));
+}
+
+async function loadCharacterChatThreads(characterId = context()?.characterId, { showLoading = true } = {}) {
+    const id = Number(characterId);
+    if (!Number.isInteger(id) || !context()?.characters?.[id]) {
+        chatThreads = [];
+        chatThreadsCharacterId = null;
+        chatThreadsError = '請先選擇一名角色。';
+        chatThreadsLoading = false;
+        if (activeView === 'threads') render('threads');
+        return [];
+    }
+
+    chatThreadsCharacterId = id;
+    chatThreadsError = '';
+    chatThreadsLoading = true;
+    if (showLoading && activeView === 'threads') render('threads');
+
+    try {
+        const result = await fetchCharacterChatThreads(id);
+        if (chatThreadsCharacterId !== id) return result;
+        chatThreads = result;
+        return result;
+    } catch (error) {
+        if (chatThreadsCharacterId === id) {
+            chatThreads = [];
+            chatThreadsError = error.message || '無法讀取聊天室清單。';
+        }
+        console.error('[Midnight Signal] Failed to load character chats.', error);
+        return [];
+    } finally {
+        if (chatThreadsCharacterId === id) chatThreadsLoading = false;
+        if (activeView === 'threads' && Number(context()?.characterId) === id) render('threads');
+    }
+}
+
+async function openCharacterThreads(characterId = context()?.characterId) {
+    const id = Number(characterId);
+    if (!Number.isInteger(id) || !context()?.characters?.[id]) {
+        notify('請先選擇一名角色。', 'warning');
+        render('home');
+        return;
+    }
+
+    if (Number(context()?.characterId) !== id) await selectCharacter(id);
+    selectedCharacterId = id;
+    selectedProfileCharacterId = id;
+    chatThreadsCharacterId = id;
+    chatThreads = [];
+    chatThreadsError = '';
+    render('threads');
+    await loadCharacterChatThreads(id);
+}
+
+async function openChatThread(fileName) {
+    const name = String(fileName || '').replace(/\.jsonl$/i, '').trim();
+    if (!name || !getCurrentCharacter()) return;
+
+    if (name !== currentChatName()) {
+        const ctx = context();
+        const core = await getCoreModule();
+        const open = ctx?.openCharacterChat || core.openCharacterChat;
+        if (typeof open !== 'function') throw new Error('此版本無法切換聊天室。');
+        await open.call(ctx, name);
+    }
+
+    await syncRoleplayContextPrompt();
+    render('messages');
+}
+
+async function createNewCharacterChat() {
+    if (!getCurrentCharacter()) {
+        notify('請先選擇一名角色。', 'warning');
+        return;
+    }
+    const core = await getCoreModule();
+    if (typeof core.doNewChat !== 'function') throw new Error('此版本無法建立新聊天室。');
+    await core.doNewChat({ deleteCurrentChat: false });
+    chatThreads = [];
+    chatThreadsError = '';
+    await syncRoleplayContextPrompt();
+    render('messages');
+    notify('已建立新的獨立聊天室。', 'success');
 }
 
 async function applyGreeting(index) {
@@ -829,7 +972,7 @@ function settingsMarkup() {
                 ${icon('chevron-right')}
             </button>
             <button class="msa-danger-button" type="button" data-action="reset-data">${icon('rotate-left')} 清除 APP 筆記資料</button>
-            <p class="msa-version">Midnight Signal APP · v2.3.0</p>
+            <p class="msa-version">Midnight Signal APP · v2.4.0</p>
         </section>`;
 }
 
@@ -846,6 +989,80 @@ function characterCardMarkup({ character, id }) {
         </div>`;
 }
 
+function conversationsMarkup() {
+    const characters = getCharacters();
+    const currentId = Number(context()?.characterId);
+    return `
+        <section class="msa-page msa-conversations-page">
+            <div class="msa-conversations-heading">
+                <span><small>CONVERSATIONS</small><strong>選擇對話角色</strong><em>點選角色後，再選擇該角色的聊天室</em></span>
+                <button type="button" data-nav="cards">${icon('plus')} 角色</button>
+            </div>
+            <div class="msa-conversation-role-list">${characters.length ? characters.map(({ character, id }) => `
+                <article class="msa-conversation-role ${id === currentId ? 'is-current' : ''}">
+                    <button type="button" data-conversation-character-id="${id}">
+                        <span class="msa-conversation-role-art" style="--msa-conversation-avatar:url(&quot;${escapeHtml(originalAvatarUrl(character))}&quot;)"></span>
+                        <span class="msa-conversation-role-copy">
+                            <span><strong>${escapeHtml(characterName(character))}</strong>${id === currentId ? '<b>目前</b>' : ''}</span>
+                            <small>${escapeHtml(excerpt(character.description || character.data?.description || '點擊查看這名角色的聊天室。', 72))}</small>
+                            <em>${icon('comments')} 查看聊天室</em>
+                        </span>
+                        ${icon('chevron-right')}
+                    </button>
+                </article>`).join('') : '<div class="msa-thread-state"><i class="fa-solid fa-user-slash"></i><strong>還沒有角色</strong><span>請先匯入或新增角色卡。</span><button type="button" data-nav="cards">前往角色管理</button></div>'}</div>
+        </section>`;
+}
+
+function chatThreadsMarkup() {
+    const current = getCurrentCharacter();
+    if (!current) return emptyMarkup('尚未選擇角色', '請先回到探索頁選擇想要對話的角色。');
+
+    const isLoadedCharacter = chatThreadsCharacterId === current.id;
+    const items = isLoadedCharacter ? chatThreads : [];
+    const activeChat = currentChatName();
+    const avatar = originalAvatarUrl(current.character);
+    const list = chatThreadsLoading && !items.length
+        ? `<div class="msa-thread-state">${icon('spinner')}<strong>正在讀取聊天室</strong><span>整理 ${escapeHtml(characterName(current.character))} 的對話紀錄……</span></div>`
+        : chatThreadsError
+            ? `<div class="msa-thread-state is-error">${icon('triangle-exclamation')}<strong>無法讀取聊天室</strong><span>${escapeHtml(chatThreadsError)}</span><button type="button" data-action="reload-chat-threads">重新讀取</button></div>`
+            : items.length
+                ? items.map(chat => {
+                    const fileName = chatThreadFileName(chat);
+                    const isCurrent = fileName === activeChat;
+                    const messages = Math.max(0, Number(chat.chat_items) || 0);
+                    const preview = excerpt(chat.mes || '這個聊天室還沒有訊息。', 88);
+                    return `
+                        <article class="msa-thread-card ${isCurrent ? 'is-current' : ''}">
+                            <button class="msa-thread-main" type="button" data-open-chat-file="${escapeHtml(fileName)}" aria-label="開啟聊天室 ${escapeHtml(fileName)}">
+                                <span class="msa-thread-status">${icon(isCurrent ? 'signal' : 'comment-dots')}</span>
+                                <span class="msa-thread-copy">
+                                    <span class="msa-thread-title"><strong>${escapeHtml(fileName)}</strong>${isCurrent ? '<b>目前</b>' : ''}</span>
+                                    <small>${escapeHtml(preview)}</small>
+                                    <span class="msa-thread-meta"><b>${messages} 則訊息</b><time>${escapeHtml(formatChatThreadTime(chat))}</time></span>
+                                </span>
+                                ${icon('chevron-right')}
+                            </button>
+                            <button class="msa-thread-rename" type="button" data-rename-chat-file="${escapeHtml(fileName)}" aria-label="重新命名 ${escapeHtml(fileName)}" title="重新命名聊天室">${icon('pen')}</button>
+                        </article>`;
+                }).join('')
+                : `<div class="msa-thread-state">${icon('comment-slash')}<strong>還沒有聊天室</strong><span>建立第一個聊天室，關係狀態與重要記憶會獨立保存。</span><button type="button" data-action="new-chat">建立聊天室</button></div>`;
+
+    return `
+        <section class="msa-page msa-threads-page">
+            <div class="msa-threads-topbar">
+                <button type="button" data-action="conversation-hub">${icon('arrow-left')} 對話</button>
+                <button class="is-primary" type="button" data-action="new-chat">${icon('plus')} 新增聊天室</button>
+            </div>
+            <div class="msa-threads-hero" style="--msa-thread-avatar:url(&quot;${escapeHtml(avatar)}&quot;)">
+                <span class="msa-threads-hero-art"></span><span class="msa-threads-hero-shade"></span>
+                <span class="msa-threads-hero-copy"><small>CHAT WINDOWS</small><strong>${escapeHtml(characterName(current.character))}</strong><em>${items.length} 個獨立聊天室</em></span>
+            </div>
+            <div class="msa-threads-heading"><span><small>選擇聊天室</small><strong>對話紀錄</strong></span><button type="button" data-action="reload-chat-threads" aria-label="重新整理聊天室清單">${icon('rotate')}</button></div>
+            <p class="msa-threads-note">${icon('layer-group')} 每個聊天室都有各自的名稱、關係狀態與重要記憶。點選後才會進入聊天畫面。</p>
+            <div class="msa-thread-list" role="list">${list}</div>
+        </section>`;
+}
+
 function messagesMarkup() {
     const chat = context()?.chat || [];
     const visibleMessages = chat.slice(-100);
@@ -857,8 +1074,9 @@ function messagesMarkup() {
     return `
         <section class="msa-page msa-chat-page">
             <div class="msa-chat-contactbar">
-                <button class="msa-chat-back" type="button" data-nav="home" aria-label="返回探索">${icon('arrow-left')}</button>
-                ${current ? `<button class="msa-chat-contact" type="button" data-profile-character-id="${current.id}"><span class="msa-avatar" style="--msa-avatar-url:url(&quot;${escapeHtml(currentAvatar)}&quot;)"></span><span><strong>${escapeHtml(characterName(current.character))}</strong><small><b></b> 線上 · 角色主頁</small></span></button>` : `<div class="msa-chat-contact"><span><strong>尚未選擇角色</strong><small>請先返回探索</small></span></div>`}
+                <button class="msa-chat-back" type="button" data-action="chat-list" aria-label="返回聊天室清單">${icon('arrow-left')}</button>
+                ${current ? `<button class="msa-chat-contact" type="button" data-profile-character-id="${current.id}"><span class="msa-avatar" style="--msa-avatar-url:url(&quot;${escapeHtml(currentAvatar)}&quot;)"></span><span><strong>${escapeHtml(characterName(current.character))}</strong><small><b></b> ${escapeHtml(currentChatName() || '目前聊天室')} · 角色主頁</small></span></button>` : `<div class="msa-chat-contact"><span><strong>尚未選擇角色</strong><small>請先返回探索</small></span></div>`}
+                ${currentChatName() ? `<button class="msa-chat-rename-button" type="button" data-rename-chat-file="${escapeHtml(currentChatName())}" aria-label="重新命名目前聊天室" title="重新命名聊天室">${icon('pen')}</button>` : ''}
                 <button class="msa-chat-background-button" type="button" data-action="chat-background" aria-label="更換聊天室背景" title="更換聊天室背景">${icon('image')}</button>
             </div>
             ${hiddenCount ? `<p class="msa-chat-history-note">為保持流暢，目前顯示最近 100 則訊息；更早的 ${hiddenCount} 則仍保存在 SillyTavern。</p>` : ''}
@@ -890,6 +1108,7 @@ function relationshipMarkup() {
         <section class="msa-page">
             <div class="msa-page-title"><span><small>RELATIONSHIP</small><strong>與 ${escapeHtml(characterName(character))} 的關係</strong></span></div>
             ${profileTabsMarkup('relationship')}
+            <button class="msa-roleplay-chat-chip" type="button" data-action="chat-list">${icon('comments')}<span><small>目前聊天室</small><strong>${escapeHtml(currentChatName() || '未命名聊天室')}</strong></span>${icon('chevron-right')}</button>
             <p class="msa-context-sync-note">${icon('link')} 此內容只屬於目前聊天室，角色每次回覆前都會讀取</p>
             <div class="msa-stat-card"><span>目前聊天室對話回合</span><strong>${rounds}</strong></div>
             <label class="msa-textarea-label">關係備忘錄
@@ -908,6 +1127,7 @@ function memoriesMarkup() {
         <section class="msa-page">
             <div class="msa-page-title"><span><small>MEMORIES</small><strong>和 ${escapeHtml(characterName(character))} 的回憶</strong></span></div>
             ${profileTabsMarkup('memories')}
+            <button class="msa-roleplay-chat-chip" type="button" data-action="chat-list">${icon('comments')}<span><small>目前聊天室</small><strong>${escapeHtml(currentChatName() || '未命名聊天室')}</strong></span>${icon('chevron-right')}</button>
             <p class="msa-context-sync-note">${icon('link')} 每個聊天室獨立保存；最近 ${ROLEPLAY_PROMPT_MAX_MEMORIES} 則會同步至角色回覆</p>
             <div class="msa-add-row"><input id="msa-memory-input" type="text" maxlength="240" placeholder="記下一件重要的事"><button type="button" data-action="add-memory">${icon('plus')}</button></div>
             <div class="msa-memory-list">${list.length ? list.map((item, index) => `
@@ -983,6 +1203,7 @@ function render(view = activeView) {
     if (!root || !content) return;
     applyVisualSettings(root);
     root.classList.toggle('msa-view-messages', view === 'messages');
+    root.classList.toggle('msa-view-threads', view === 'threads');
 
     const markup = {
         home: homeMarkup,
@@ -990,6 +1211,8 @@ function render(view = activeView) {
         favorites: favoritesMarkup,
         cards: characterManagementMarkup,
         settings: settingsMarkup,
+        conversations: conversationsMarkup,
+        threads: chatThreadsMarkup,
         messages: messagesMarkup,
         relationship: relationshipMarkup,
         memories: memoriesMarkup,
@@ -998,7 +1221,7 @@ function render(view = activeView) {
     }[view]?.() || homeMarkup();
 
     content.innerHTML = markup;
-    const navView = view === 'profile' ? 'cards' : view;
+    const navView = view === 'profile' ? 'cards' : (['conversations', 'threads'].includes(view) ? 'messages' : view);
     root.querySelectorAll('.msa-bottom-nav [data-nav]').forEach(button => button.classList.toggle('is-active', button.dataset.nav === navView));
     updateCurrentAvatar();
     if (previousView !== view) {
@@ -1083,6 +1306,61 @@ function closeSheet() {
     const sheet = document.getElementById('msa-sheet');
     sheet?.classList.add('msa-hidden');
     sheet?.setAttribute('aria-hidden', 'true');
+}
+
+function openRenameChatSheet(fileName) {
+    const oldName = String(fileName || '').replace(/\.jsonl$/i, '').trim();
+    if (!oldName) return;
+    const current = getCurrentCharacter();
+    const content = `
+        <div id="msa-rename-chat-form" class="msa-rename-chat-form" data-old-chat-name="${escapeHtml(oldName)}">
+            <div class="msa-rename-chat-intro">${icon('pen-to-square')}<span><strong>更改聊天室名稱</strong><small>${escapeHtml(characterName(current?.character))} · 關係狀態與重要記憶不會受到影響</small></span></div>
+            <label>聊天室名稱<input id="msa-rename-chat-input" type="text" maxlength="180" value="${escapeHtml(oldName)}" autocomplete="off" spellcheck="false"></label>
+            <p>${icon('circle-info')} 僅變更顯示與檔案名稱；目前聊天室內的訊息、Token 紀錄、關係狀態及重要記憶都會完整保留。</p>
+            <button class="msa-save-button" type="button" data-action="confirm-rename-chat">${icon('floppy-disk')} 儲存聊天室名稱</button>
+        </div>`;
+    showSheet('重新命名聊天室', content);
+    setTimeout(() => document.getElementById('msa-rename-chat-input')?.focus(), 80);
+}
+
+async function renameCharacterChatFromApp() {
+    const form = document.getElementById('msa-rename-chat-form');
+    const input = document.getElementById('msa-rename-chat-input');
+    const oldName = String(form?.dataset.oldChatName || '').trim();
+    const newName = String(input?.value || '').trim().replace(/\.jsonl$/i, '');
+    if (!oldName || !newName) {
+        notify('請輸入聊天室名稱。', 'warning');
+        input?.focus();
+        return;
+    }
+    if (oldName === newName) {
+        closeSheet();
+        return;
+    }
+
+    const button = form.querySelector('[data-action="confirm-rename-chat"]');
+    if (button) button.disabled = true;
+    try {
+        const ctx = context();
+        const core = await getCoreModule();
+        const rename = ctx?.renameChat || core.renameChat;
+        if (typeof rename !== 'function') throw new Error('此版本無法重新命名聊天室。');
+        await rename.call(ctx, oldName, newName);
+        await sleep(300);
+        closeSheet();
+        const chats = await loadCharacterChatThreads(context()?.characterId, { showLoading: false });
+        if (chats.some(chat => chatThreadFileName(chat) === oldName)) {
+            notify('聊天室名稱未變更，請確認名稱沒有重複。', 'error');
+            return;
+        }
+        await syncRoleplayContextPrompt();
+        render('threads');
+        notify('聊天室名稱已更新，所有聊天室專屬資料均已保留。', 'success');
+    } catch (error) {
+        notify(error.message || '聊天室重新命名失敗。', 'error');
+        console.error('[Midnight Signal] Failed to rename chat.', error);
+        if (button?.isConnected) button.disabled = false;
+    }
 }
 
 function openCharacterSheet() {
@@ -1698,6 +1976,10 @@ async function handleClick(event) {
     const button = event.target.closest('button, [data-action], [data-nav]');
     if (!button) return;
 
+    if (button.dataset.nav === 'messages') {
+        render('conversations');
+        return;
+    }
     if (button.dataset.nav) {
         render(button.dataset.nav);
         return;
@@ -1715,11 +1997,21 @@ async function handleClick(event) {
     if (button.dataset.startCharacterId !== undefined) {
         button.disabled = true;
         try {
-            await selectCharacter(Number(button.dataset.startCharacterId));
-            render('messages');
-            notify(`已切換至 ${characterName(getCurrentCharacter()?.character)}。`, 'success');
+            await openCharacterThreads(Number(button.dataset.startCharacterId));
+            notify(`已開啟 ${characterName(getCurrentCharacter()?.character)} 的聊天室清單。`, 'success');
         } catch (error) {
             notify(error.message || '角色切換失敗。', 'error');
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.conversationCharacterId !== undefined) {
+        button.disabled = true;
+        try {
+            await openCharacterThreads(Number(button.dataset.conversationCharacterId));
+        } catch (error) {
+            notify(error.message || '無法開啟這名角色的聊天室。', 'error');
         } finally {
             if (button.isConnected) button.disabled = false;
         }
@@ -1802,6 +2094,22 @@ async function handleClick(event) {
         deleteMemory(button.dataset.deleteMemory);
         return;
     }
+    if (button.dataset.openChatFile !== undefined) {
+        button.disabled = true;
+        try {
+            await openChatThread(button.dataset.openChatFile);
+        } catch (error) {
+            notify(error.message || '聊天室切換失敗。', 'error');
+            console.error('[Midnight Signal] Failed to open chat.', error);
+        } finally {
+            if (button.isConnected) button.disabled = false;
+        }
+        return;
+    }
+    if (button.dataset.renameChatFile !== undefined) {
+        openRenameChatSheet(button.dataset.renameChatFile);
+        return;
+    }
 
     const actions = {
         close: hideApp,
@@ -1832,6 +2140,18 @@ async function handleClick(event) {
         },
         profile: () => render('profile'),
         messages: () => render('messages'),
+        'conversation-hub': () => render('conversations'),
+        'chat-list': () => openCharacterThreads(context()?.characterId),
+        'new-chat': async () => {
+            try {
+                await createNewCharacterChat();
+            } catch (error) {
+                notify(error.message || '建立聊天室失敗。', 'error');
+                console.error('[Midnight Signal] Failed to create chat.', error);
+            }
+        },
+        'reload-chat-threads': () => loadCharacterChatThreads(context()?.characterId),
+        'confirm-rename-chat': renameCharacterChatFromApp,
         relationship: () => openProfileStateView('relationship'),
         memories: () => openProfileStateView('memories'),
         moments: () => render('moments'),
@@ -1935,6 +2255,10 @@ function mount() {
     document.getElementById(ROOT_ID).addEventListener('keydown', event => {
         if (event.key === 'Escape') hideApp();
         if (event.key === 'Enter' && event.target.id === 'msa-memory-input') addMemory();
+        if (event.key === 'Enter' && event.target.id === 'msa-rename-chat-input') {
+            event.preventDefault();
+            renameCharacterChatFromApp();
+        }
         if (event.key === 'Enter' && event.target.id === 'msa-chat-input' && !event.shiftKey) {
             event.preventDefault();
             sendMessageFromApp();
@@ -1980,10 +2304,14 @@ function mount() {
         selectedCharacterId = currentId !== undefined && currentId !== null && Number.isInteger(Number(currentId)) ? Number(currentId) : selectedCharacterId;
         if (['relationship', 'memories'].includes(activeView)) selectedProfileCharacterId = selectedCharacterId;
         await syncRoleplayContextPrompt();
-        if (!document.getElementById(ROOT_ID)?.classList.contains('msa-hidden')) render(activeView);
+        if (activeView === 'threads') {
+            await loadCharacterChatThreads(selectedCharacterId, { showLoading: false });
+        } else if (!document.getElementById(ROOT_ID)?.classList.contains('msa-hidden')) {
+            render(activeView);
+        }
         if (activeView === 'tokens') calculateCurrentChatTokens();
     };
-    ['CHAT_CHANGED', 'CHARACTER_EDITED', 'CHARACTER_DELETED', 'CHARACTER_CREATED', 'MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_SWIPED'].forEach(name => {
+    ['CHAT_CHANGED', 'CHAT_RENAMED', 'CHAT_DELETED', 'CHARACTER_EDITED', 'CHARACTER_DELETED', 'CHARACTER_CREATED', 'MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_SWIPED'].forEach(name => {
         const eventName = ctx?.eventTypes?.[name] || ctx?.event_types?.[name];
         if (eventName) ctx.eventSource?.on?.(eventName, refresh);
     });

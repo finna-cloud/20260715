@@ -984,3 +984,223 @@ body.msa-open { overflow: hidden; }
     line-height: 1.5;
 }
 #msa-root .msa-context-sync-note > i { flex: 0 0 auto; color: #7de8d7; }
+
+/* v2.4.0 — character chat-window picker and chat rename */
+#msa-root .msa-conversations-page { display: grid; align-content: start; gap: 14px; }
+#msa-root .msa-conversations-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding: 4px 3px 13px; border-bottom: 1px solid rgba(205,195,255,.11); }
+#msa-root .msa-conversations-heading > span { display: grid; min-width: 0; gap: 4px; }
+#msa-root .msa-conversations-heading small { color: #7de8d7; font-size: calc(7px * var(--msa-ui-font-scale, 1)); font-weight: 900; letter-spacing: .17em; }
+#msa-root .msa-conversations-heading strong { font-size: calc(22px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-conversations-heading em { color: #837d8d; font-size: calc(8px * var(--msa-ui-font-scale, 1)); font-style: normal; }
+#msa-root .msa-conversations-heading > button { flex: 0 0 auto; min-height: 40px; padding: 0 12px; border: 1px solid rgba(111,232,213,.25); border-radius: 13px; color: #a3eee3; background: rgba(58,151,138,.1); cursor: pointer; }
+#msa-root .msa-conversation-role-list { display: grid; max-height: min(66dvh, 610px); overflow-x: hidden; overflow-y: auto; align-content: start; gap: 10px; padding: 1px 3px 5px 1px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(157,132,255,.45) transparent; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+#msa-root .msa-conversation-role { overflow: hidden; border: 1px solid rgba(205,195,255,.11); border-radius: 20px; background: rgba(23,20,33,.96); }
+#msa-root .msa-conversation-role.is-current { border-color: rgba(111,232,213,.34); background: linear-gradient(135deg, rgba(58,151,138,.1), rgba(129,104,229,.07)); }
+#msa-root .msa-conversation-role > button { display: grid; grid-template-columns: 74px minmax(0, 1fr) 10px; align-items: center; gap: 12px; width: 100%; min-height: 104px; padding: 10px 14px 10px 10px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+#msa-root .msa-conversation-role-art { width: 74px; height: 84px; border-radius: 15px; background-color: #1a1624; background-image: var(--msa-conversation-avatar); background-position: center 25%; background-repeat: no-repeat; background-size: cover; image-rendering: auto; }
+#msa-root .msa-conversation-role-copy { display: grid; min-width: 0; gap: 7px; }
+#msa-root .msa-conversation-role-copy > span { display: flex; min-width: 0; align-items: center; gap: 7px; }
+#msa-root .msa-conversation-role-copy strong { overflow: hidden; color: #f2edf7; font-size: calc(13px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-conversation-role-copy b { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; color: #91ecdf; background: rgba(58,151,138,.15); font-size: calc(6px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-conversation-role-copy small { display: -webkit-box; overflow: hidden; color: #8e8798; font-size: calc(8px * var(--msa-ui-font-scale, 1)); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#msa-root .msa-conversation-role-copy em { color: #a99ce0; font-size: calc(8px * var(--msa-ui-font-scale, 1)); font-style: normal; }
+#msa-root .msa-conversation-role > button > i { color: #7c7587; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
+
+#msa-root .msa-threads-page {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 6px;
+}
+#msa-root .msa-threads-topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#msa-root .msa-threads-topbar button {
+    min-height: 42px;
+    padding: 0 14px;
+    border: 1px solid rgba(205,195,255,.14);
+    border-radius: 14px;
+    color: #dcd5e8;
+    background: rgba(25,21,35,.96);
+    cursor: pointer;
+}
+#msa-root .msa-threads-topbar button.is-primary {
+    border-color: rgba(111,232,213,.32);
+    color: #f8fffd;
+    background: linear-gradient(135deg, rgba(69,177,161,.32), rgba(139,111,245,.3));
+}
+#msa-root .msa-threads-hero {
+    position: relative;
+    min-height: 170px;
+    overflow: hidden;
+    border: 1px solid rgba(205,195,255,.14);
+    border-radius: 25px;
+    background: #171320;
+}
+#msa-root .msa-threads-hero-art,
+#msa-root .msa-threads-hero-shade { position: absolute; inset: 0; }
+#msa-root .msa-threads-hero-art {
+    background-image: var(--msa-thread-avatar);
+    background-position: center 28%;
+    background-repeat: no-repeat;
+    background-size: cover;
+    image-rendering: auto;
+}
+#msa-root .msa-threads-hero-shade { background: linear-gradient(90deg, rgba(10,8,15,.96), rgba(10,8,15,.6) 48%, rgba(10,8,15,.13)), linear-gradient(0deg, rgba(10,8,15,.82), transparent 66%); }
+#msa-root .msa-threads-hero-copy { position: absolute; inset: auto 18px 17px; display: grid; gap: 4px; max-width: 72%; }
+#msa-root .msa-threads-hero-copy small { color: #7de8d7; font-size: calc(7px * var(--msa-ui-font-scale, 1)); font-weight: 900; letter-spacing: .17em; }
+#msa-root .msa-threads-hero-copy strong { overflow: hidden; color: #fff; font-size: calc(25px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-threads-hero-copy em { color: #aaa4b4; font-size: calc(9px * var(--msa-ui-font-scale, 1)); font-style: normal; }
+#msa-root .msa-threads-heading { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 2px 3px 0; }
+#msa-root .msa-threads-heading > span { display: grid; gap: 2px; }
+#msa-root .msa-threads-heading small { color: #827c8f; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-threads-heading strong { font-size: calc(18px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-threads-heading > button {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(205,195,255,.13);
+    border-radius: 13px;
+    color: #9eece1;
+    background: #1d1927;
+    cursor: pointer;
+}
+#msa-root .msa-threads-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid rgba(111,232,213,.18);
+    border-radius: 14px;
+    color: #9e98a8;
+    background: rgba(61,153,140,.065);
+    font-size: calc(8px * var(--msa-ui-font-scale, 1));
+    line-height: 1.5;
+}
+#msa-root .msa-threads-note i { flex: 0 0 auto; color: #7de8d7; }
+#msa-root .msa-thread-list {
+    display: grid;
+    min-height: 138px;
+    max-height: 520px;
+    max-height: min(50dvh, 520px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-content: start;
+    gap: 9px;
+    padding: 1px 3px 4px 1px;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(157,132,255,.45) transparent;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+}
+#msa-root .msa-thread-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 46px;
+    min-height: 92px;
+    overflow: hidden;
+    border: 1px solid rgba(205,195,255,.11);
+    border-radius: 19px;
+    background: rgba(23,20,33,.96);
+}
+#msa-root .msa-thread-card.is-current { border-color: rgba(111,232,213,.4); background: linear-gradient(135deg, rgba(62,159,145,.12), rgba(130,105,235,.08)); }
+#msa-root .msa-thread-main {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 10px;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px 8px 12px 12px;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+#msa-root .msa-thread-status { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 13px; color: #ad9dca; background: #272132; }
+#msa-root .msa-thread-card.is-current .msa-thread-status { color: #7de8d7; background: rgba(54,146,133,.2); }
+#msa-root .msa-thread-copy { display: grid; min-width: 0; gap: 5px; }
+#msa-root .msa-thread-title { display: flex; min-width: 0; align-items: center; gap: 7px; }
+#msa-root .msa-thread-title strong { overflow: hidden; color: #f3eff8; font-size: calc(11px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-thread-title b { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; color: #92eee1; background: rgba(61,160,146,.16); font-size: calc(6px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-thread-copy > small { overflow: hidden; color: #8f8999; font-size: calc(8px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-thread-meta { display: flex; align-items: center; gap: 8px; color: #716b7b; font-size: calc(7px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-thread-meta b { color: #9c94aa; }
+#msa-root .msa-thread-main > i { color: #746d80; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-thread-rename {
+    align-self: stretch;
+    margin: 8px 8px 8px 0;
+    border: 1px solid rgba(164,141,255,.18);
+    border-radius: 13px;
+    color: #c4b7ee;
+    background: rgba(135,109,235,.08);
+    cursor: pointer;
+}
+#msa-root .msa-thread-state { display: grid; min-height: 180px; place-items: center; align-content: center; gap: 9px; padding: 22px; border: 1px dashed rgba(205,195,255,.16); border-radius: 19px; color: #88818f; text-align: center; }
+#msa-root .msa-thread-state > i { color: #7de8d7; font-size: calc(22px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-thread-state > .fa-spinner { animation: msa-thread-spin 850ms linear infinite; }
+#msa-root .msa-thread-state strong { color: #e7e1ec; font-size: calc(12px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-thread-state span { max-width: 280px; font-size: calc(8px * var(--msa-ui-font-scale, 1)); line-height: 1.55; }
+#msa-root .msa-thread-state button { min-height: 40px; padding: 0 14px; border: 1px solid rgba(111,232,213,.28); border-radius: 13px; color: #b9f2ea; background: rgba(61,160,146,.12); }
+#msa-root .msa-thread-state.is-error > i { color: #ff8fad; }
+@keyframes msa-thread-spin { to { transform: rotate(360deg); } }
+
+#msa-root .msa-chat-contactbar { grid-template-columns: 38px minmax(0, 1fr) 38px 38px; }
+#msa-root .msa-chat-rename-button {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(164,141,255,.18);
+    border-radius: 14px;
+    color: #c5b8ee;
+    background: #1d1927;
+    cursor: pointer;
+}
+#msa-root .msa-chat-contact small { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+
+#msa-root .msa-rename-chat-form { display: grid; gap: 14px; }
+#msa-root .msa-rename-chat-intro { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid rgba(111,232,213,.21); border-radius: 17px; background: rgba(58,151,138,.075); }
+#msa-root .msa-rename-chat-intro > i { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 13px; color: #7de8d7; background: rgba(63,160,146,.14); }
+#msa-root .msa-rename-chat-intro > span { display: grid; min-width: 0; gap: 4px; }
+#msa-root .msa-rename-chat-intro strong { color: #f2edf7; font-size: calc(12px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-rename-chat-intro small { overflow: hidden; color: #8e8797; font-size: calc(8px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-rename-chat-form label { display: grid; gap: 7px; color: #b8b1c0; font-size: calc(9px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-rename-chat-form input { width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid rgba(205,195,255,.16); border-radius: 15px; color: #f5f0fa; background: #1b1724; outline: 0; }
+#msa-root .msa-rename-chat-form input:focus { border-color: rgba(111,232,213,.58); box-shadow: 0 0 0 4px rgba(111,232,213,.07); }
+#msa-root .msa-rename-chat-form > p { display: flex; gap: 8px; margin: 0; color: #7f7888; font-size: calc(8px * var(--msa-ui-font-scale, 1)); line-height: 1.55; }
+#msa-root .msa-rename-chat-form > p i { flex: 0 0 auto; margin-top: 2px; color: #9681e7; }
+#msa-root .msa-roleplay-chat-chip {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 10px;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 58px;
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    border: 1px solid rgba(164,141,255,.22);
+    border-radius: 16px;
+    color: #d9d2e5;
+    background: rgba(129,104,229,.08);
+    text-align: left;
+    cursor: pointer;
+}
+#msa-root .msa-roleplay-chat-chip > i:first-child { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 12px; color: #7de8d7; background: rgba(58,151,138,.13); }
+#msa-root .msa-roleplay-chat-chip > span { display: grid; min-width: 0; gap: 3px; }
+#msa-root .msa-roleplay-chat-chip small { color: #817a8b; font-size: calc(7px * var(--msa-ui-font-scale, 1)); }
+#msa-root .msa-roleplay-chat-chip strong { overflow: hidden; font-size: calc(10px * var(--msa-ui-font-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
+#msa-root .msa-roleplay-chat-chip > i:last-child { color: #827a8f; font-size: calc(8px * var(--msa-ui-font-scale, 1)); }
+
+@media (max-width: 390px) {
+    #msa-root .msa-conversation-role > button { grid-template-columns: 64px minmax(0, 1fr) 9px; gap: 9px; padding-inline: 8px 10px; }
+    #msa-root .msa-conversation-role-art { width: 64px; height: 76px; }
+    #msa-root .msa-threads-hero { min-height: 145px; }
+    #msa-root .msa-thread-list { max-height: 48dvh; }
+    #msa-root .msa-chat-contactbar { grid-template-columns: 36px minmax(0, 1fr) 36px 36px; gap: 6px; padding-inline: 9px; }
+    #msa-root .msa-chat-back, #msa-root .msa-chat-background-button, #msa-root .msa-chat-rename-button { width: 36px; height: 36px; }
+}
